@@ -564,19 +564,47 @@ with detalhes_tab:
 
     st.subheader("Gráficos de sinais")
     if s["sinal"]:
-        def _serie(idx):
-            return pd.DataFrame({nome_cinto(c): pd.Series([p[idx] if len(p) > idx else None for p in pts],
-                                                          index=[p[0] for p in pts])
-                                 for c, pts in s["sinal"].items()})
+        JANELA_S = 5
+        # instante da amostra mais recente = borda direita (0 s); eixo fixo de -5 s a 0 s
+        t_ref = max(pts[-1][0] for pts in s["sinal"].values() if pts)
+        rotulos_t = {k: (t_ref + pd.Timedelta(seconds=k)).strftime("%H:%M:%S") for k in range(-JANELA_S, 1)}
+        mapa_t = ", ".join(f"'{k}': '{v}'" for k, v in rotulos_t.items())
+        label_expr_t = "{" + mapa_t + "}[toString(datum.value)]"
+
+        def grafico_sinal(idx, titulo_y):
+            linhas = []
+            for c, pts in s["sinal"].items():
+                nome = nome_cinto(c)
+                for p in pts:
+                    if len(p) <= idx:
+                        continue
+                    dt_s = (p[0] - t_ref).total_seconds()
+                    if dt_s < -JANELA_S:
+                        continue
+                    linhas.append({"t": dt_s, "valor": p[idx], "cinto": nome,
+                                   "horario": p[0].strftime("%H:%M:%S.%f")[:-3]})
+            df = pd.DataFrame(linhas)
+            return alt.Chart(df).mark_line().encode(
+                x=alt.X("t:Q", title="Horário (0 = agora)",
+                        scale=alt.Scale(domain=[-JANELA_S, 0], nice=False),
+                        axis=alt.Axis(values=list(range(-JANELA_S, 1)), labelExpr=label_expr_t,
+                                      labelAngle=-45, grid=True)),
+                y=alt.Y("valor:Q", title=titulo_y),
+                color=alt.Color("cinto:N", title="Legenda"),
+                tooltip=[alt.Tooltip("horario:N", title="Horário"),
+                         alt.Tooltip("cinto:N", title="Cinto"),
+                         alt.Tooltip("valor:Q", title=titulo_y, format=".2f")],
+            ).properties(height=220)
+
         g1, g2 = st.columns(2)
         with g1:
             st.caption("Acelerômetro |a| (g) — últimos 5 s")
-            st.line_chart(_serie(1), height=220)
+            st.altair_chart(grafico_sinal(1, "|a| (g)"), width="stretch")
         with g2:
             st.caption("Giroscópio |ω| (°/s) — últimos 5 s")
-            st.line_chart(_serie(2), height=220)
-        st.caption("ECG bruto (AD8232)")
-        st.line_chart(_serie(3), height=220)
+            st.altair_chart(grafico_sinal(2, "|ω| (°/s)"), width="stretch")
+        st.caption("ECG bruto (AD8232) — últimos 5 s")
+        st.altair_chart(grafico_sinal(3, "ADC (0–4095)"), width="stretch")
     else:
         st.caption("Sem dados de sinal para plotar.")
 
