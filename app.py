@@ -565,10 +565,14 @@ with detalhes_tab:
     st.subheader("Gráficos de sinais")
     if s["sinal"]:
         JANELA_S = 5
+        N_TICKS = 5
         # instante da amostra mais recente = borda direita (0 s); eixo fixo de -5 s a 0 s
         t_ref = max(pts[-1][0] for pts in s["sinal"].values() if pts)
-        rotulos_t = {k: (t_ref + pd.Timedelta(seconds=k)).strftime("%H:%M:%S") for k in range(-JANELA_S, 1)}
-        mapa_t = ", ".join(f"'{k}': '{v}'" for k, v in rotulos_t.items())
+        # 5 marcas fixas igualmente espaçadas na janela (-5, -3.75, -2.5, -1.25, 0 s)
+        ticks = [round(-JANELA_S + i * JANELA_S / (N_TICKS - 1), 4) for i in range(N_TICKS)]
+        rotulos_t = {k: (t_ref + pd.Timedelta(seconds=k)).strftime("%H:%M:%S") for k in ticks}
+        # chaves no formato que toString() do Vega produz ("-5", "-3.75", "0")
+        mapa_t = ", ".join(f"'{k:g}': '{v}'" for k, v in rotulos_t.items())
         label_expr_t = "{" + mapa_t + "}[toString(datum.value)]"
 
         def grafico_sinal(idx, titulo_y):
@@ -587,7 +591,7 @@ with detalhes_tab:
             return alt.Chart(df).mark_line().encode(
                 x=alt.X("t:Q", title="Horário (0 = agora)",
                         scale=alt.Scale(domain=[-JANELA_S, 0], nice=False),
-                        axis=alt.Axis(values=list(range(-JANELA_S, 1)), labelExpr=label_expr_t,
+                        axis=alt.Axis(values=ticks, labelExpr=label_expr_t,
                                       labelAngle=-45, grid=True)),
                 y=alt.Y("valor:Q", title=titulo_y),
                 color=alt.Color("cinto:N", title="Legenda"),
