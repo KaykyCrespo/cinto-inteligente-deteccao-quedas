@@ -40,6 +40,7 @@ BROKER = os.environ.get("OQPNB_BROKER", "localhost")
 PORT = int(os.environ.get("OQPNB_PORT", "1883"))
 MODELO = os.environ.get("OQPNB_MODELO", "modelo_mvp_8g.joblib")
 LSB_G_PADRAO = 4096.0     # ±8 g (só usado se a detecção estiver desligada)
+LSB_DPS_PADRAO = 16.4     # ±2000 °/s (idem)
 PASTA_GRAVACOES = "gravacoes"
 JANELAS_MAX = 20000       # janelas guardadas em memória para download (~3 h)
 RSSI_WINDOW = 20
@@ -60,10 +61,11 @@ class Conexao:
         self.detectar = detectar
         self.limiar = limiar
         self.lsb_g = LSB_G_PADRAO
+        self.lsb_dps = LSB_DPS_PADRAO
         self.faixa = None
         self.estado = {}            # (cinto, antena) -> {"rssi": [...], "last": dict, "t": float}
         self.anchors_status = {}    # antena -> "online"/"offline"
-        self.sinal = {}             # cinto -> deque[(datetime, |a| g, ecg)]
+        self.sinal = {}             # cinto -> deque[(datetime, |a| g, |w| °/s, ecg)]
         self.hist_prob = {}         # cinto -> deque[(datetime, prob)]
         self.taxa = {}              # cinto -> {"n": int, "t0": float, "hz": float}
         self.quedas = deque(maxlen=EVENTOS_MAX)
@@ -80,6 +82,7 @@ class Conexao:
                 self.detector = DetectorQuedaStream(MODELO, limiar=limiar)
                 d = self.detector
                 self.lsb_g = d.lsb_g
+                self.lsb_dps = d.lsb_dps
                 self.faixa = f"{d.fs} Hz, ±{d.faixa_acc:g} g / ±{d.faixa_giro:g} °/s"
                 self._evento(f"Modelo {MODELO} carregado ({self.faixa}, limiar {d.limiar:.2f})")
             else:
@@ -182,12 +185,13 @@ class Conexao:
                 if self.grav["n"] % 200 == 0:
                     f.flush()
             amag = (d["ax"] ** 2 + d["ay"] ** 2 + d["az"] ** 2) ** 0.5 / self.lsb_g
+            gmag = (d["gx"] ** 2 + d["gy"] ** 2 + d["gz"] ** 2) ** 0.5 / self.lsb_dps
             self.total += 1
             e = self.estado.setdefault((cinto, antena), {"rssi": [], "last": None, "t": 0})
             e["rssi"] = (e["rssi"] + [d["rssi"]])[-RSSI_WINDOW:]
             e["last"] = d
             e["t"] = t
-            self.sinal.setdefault(cinto, deque(maxlen=SINAL_MAX)).append((agora, amag, d["sinal_ad8232"]))
+            self.sinal.setdefault(cinto, deque(maxlen=SINAL_MAX)).append((agora, amag, gmag, d["sinal_ad8232"]))
             tx = self.taxa.setdefault(cinto, {"n": 0, "t0": t, "hz": 0.0})
             tx["n"] += 1
             if t - tx["t0"] >= 1.0:
@@ -485,7 +489,6 @@ with detalhes_tab:
     ALT_CARD = 190                       # mesma altura para o card do cinto e o das antenas
 
     with col_cinto:
-        st.markdown("**Cinto**")
         cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
         if cinto_ids:
             for cinto in cinto_ids:
@@ -493,21 +496,20 @@ with detalhes_tab:
                 last = (m or {}).get("last") or {}
                 with st.container(border=True, height=ALT_CARD):
                     if m:
-                        st.markdown(f"**{nome_cinto(cinto)}** :green[● ONLINE]")
+                        st.markdown(f"**CINTO {nome_cinto(cinto)}** :green[● ONLINE]")
                         st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
                         st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz | "
                                    f"Eletrodos: {'OK' if last.get('eletrodos_conectados') == 1 else 'soltos'}")
                         st.caption(f"Última leitura há {m['idade']:.1f} s")
                     else:
-                        st.markdown(f"**{nome_cinto(cinto)}** :red[● OFFLINE]")
+                        st.markdown(f"**CINTO {nome_cinto(cinto)}** :red[● OFFLINE]")
                         st.caption("Sem leitura nos últimos 10 s")
         else:
             with st.container(border=True, height=ALT_CARD):
-                st.markdown("**—** :orange[● SEM CINTO]")
+                st.markdown("**CINTO —** :orange[● SEM CINTO]")
                 st.caption("Nenhum cinto detectado")
 
     with col_antenas:
-        st.markdown("**Antenas**")
         ANTENAS = [1, 2, 3, 4]
         status_antenas = {str(k): v for k, v in s["anchors"].items()}
         # RSSI mais recente visto por cada antena (de qualquer cinto)
@@ -528,7 +530,7 @@ with detalhes_tab:
                     badge, cor = "SEM STATUS", "orange"
                 r = rssi_antena.get(str(antena))
                 with col:
-                    st.markdown(f"**Antena {antena}**")
+                    st.markdown(f"**Anchor {antena}**")
                     st.markdown(f":{cor}[● {badge}]")
                     st.metric("RSSI", f"{r[0]} dBm" if r else "—",
                               f"há {r[1]:.0f} s" if r else None, delta_color="off",
@@ -536,17 +538,18 @@ with detalhes_tab:
 
     st.subheader("Gráficos de sinais")
     if s["sinal"]:
+        def _serie(idx):
+            return pd.DataFrame({nome_cinto(c): pd.Series([p[idx] for p in pts], index=[p[0] for p in pts])
+                                 for c, pts in s["sinal"].items()})
         g1, g2 = st.columns(2)
         with g1:
-            st.caption("|a| (g) — últimos 5 s")
-            df = pd.DataFrame({nome_cinto(c): pd.Series([a for _, a, _ in p], index=[t for t, _, _ in p])
-                               for c, p in s["sinal"].items()})
-            st.line_chart(df, height=220)
+            st.caption("Acelerômetro |a| (g) — últimos 5 s")
+            st.line_chart(_serie(1), height=220)
         with g2:
-            st.caption("ECG bruto (AD8232)")
-            df = pd.DataFrame({nome_cinto(c): pd.Series([e for _, _, e in p], index=[t for t, _, _ in p])
-                               for c, p in s["sinal"].items()})
-            st.line_chart(df, height=220)
+            st.caption("Giroscópio |ω| (°/s) — últimos 5 s")
+            st.line_chart(_serie(2), height=220)
+        st.caption("ECG bruto (AD8232)")
+        st.line_chart(_serie(3), height=220)
     else:
         st.caption("Sem dados de sinal para plotar.")
 
