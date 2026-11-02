@@ -448,7 +448,7 @@ with monitor_tab:
                 cores.append("red")
             escala_cor = alt.Scale(domain=dominio, range=cores)
             base = alt.Chart(df).encode(
-                x=alt.X("pos:Q", title="Horário (janela 0 = mais recente)",
+                x=alt.X("pos:Q", title="Horário",
                         scale=alt.Scale(domain=[-(N_PROB - 1), 0], nice=False),
                         axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), labelExpr=label_expr,
                                       labelAngle=-45, grid=True)),
@@ -589,7 +589,7 @@ with detalhes_tab:
                                    "horario": p[0].strftime("%H:%M:%S.%f")[:-3]})
             df = pd.DataFrame(linhas)
             return alt.Chart(df).mark_line().encode(
-                x=alt.X("t:Q", title="Horário (0 = agora)",
+                x=alt.X("t:Q", title="Horário",
                         scale=alt.Scale(domain=[-JANELA_S, 0], nice=False),
                         axis=alt.Axis(values=ticks, labelExpr=label_expr_t,
                                       labelAngle=-45, grid=True)),
@@ -602,12 +602,12 @@ with detalhes_tab:
 
         g1, g2 = st.columns(2)
         with g1:
-            st.caption("Acelerômetro |a| (g) — últimos 5 s")
-            st.altair_chart(grafico_sinal(1, "|a| (g)"), width="stretch")
+            st.caption("Acelerômetro |a| - Últimos 5s")
+            st.altair_chart(grafico_sinal(1, "|a|"), width="stretch")
         with g2:
-            st.caption("Giroscópio |ω| (°/s) — últimos 5 s")
+            st.caption("Giroscópio |ω| (°/s) — Últimos 5s")
             st.altair_chart(grafico_sinal(2, "|ω| (°/s)"), width="stretch")
-        st.caption("ECG bruto (AD8232) — últimos 5 s")
+        st.caption("ECG bruto (AD8232) — Últimos 5s")
         st.altair_chart(grafico_sinal(3, "ADC (0–4095)"), width="stretch")
     else:
         st.caption("Sem dados de sinal para plotar.")
