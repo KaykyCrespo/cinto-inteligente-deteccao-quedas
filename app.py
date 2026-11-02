@@ -14,10 +14,11 @@ O cinto (cinto_mvp_v1) manda os valores crus do MPU6050 em ±8 g / ±2000 °/s,
 e a detecção usa o modelo_mvp_8g.joblib (treinado no SisFall com essas faixas).
 
 Gravação e download de CSV (barra lateral):
-  - "Gravar amostras" salva cada amostra em gravacoes/amostras_<data>.csv e cada
-    janela analisada em gravacoes/janelas_<data>.csv.
-  - A seção "Baixar CSV" no fim da página baixa as janelas, as quedas e a última
-    gravação de amostras.
+  - "Gravar amostras" salva um único CSV em gravacoes/amostras_<data>_pNN.csv com
+    cada pacote recebido: os do GATT (sensores completos) e os só-RSSI das antenas
+    não conectadas (sensores em branco). A coluna "origem" diz qual é qual.
+  - A seção "Exportação de dados" baixa as janelas analisadas (em memória), as
+    quedas e a última gravação de amostras.
 """
 
 import csv
@@ -49,7 +50,7 @@ RSSI_WINDOW = 20
 SINAL_MAX = 500       # amostras guardadas por cinto para os gráficos (5 s a 100 Hz)
 HIST_MAX = 300        # pontos de probabilidade por cinto
 EVENTOS_MAX = 50
-AMOSTRA_COLS = ["timestamp", "id_cinto", "id_antena", "rssi", "seq", "ax", "ay", "az",
+AMOSTRA_COLS = ["timestamp", "origem", "id_cinto", "id_antena", "rssi", "seq", "ax", "ay", "az",
                 "gx", "gy", "gz", "eletrodos_conectados", "sinal_ad8232"]
 JANELA_COLS = ["timestamp", "id_cinto", "id_antena", "prob", "queda",
                "amax", "amin", "astd", "gmax", "gstd", "tilt", "jerk", "post_std"]
@@ -93,7 +94,7 @@ class Conexao:
 
         # gravação / download
         self.janelas = deque(maxlen=JANELAS_MAX)
-        self.grav = None            # {"amostras": (arquivo, writer), "janelas": (...), "n": int, ...}
+        self.grav = None            # {"amostras": (arquivo, writer, caminho), "n": int, "parte": int, ...}
         self.ultima_gravacao = None # caminhos da última gravação encerrada
 
         # id único: dois clientes com o mesmo id se derrubam mutuamente no broker
@@ -142,7 +143,6 @@ class Conexao:
             self.grav = {"inicio": agora, "inicio_parte": agora, "n": 0, "n_parte": 0,
                          "parte": 1, "partes": [], "tag": agora.strftime("%Y%m%d_%H%M%S")}
             self.grav["amostras"] = self._abrir_csv("amostras", AMOSTRA_COLS, parte=1)
-            self.grav["janelas"] = self._abrir_csv("janelas", JANELA_COLS)
             self._evento(f"Gravação iniciada: {self.grav['amostras'][2]}")
 
     def _rotacionar_se_preciso(self, agora):
@@ -164,11 +164,9 @@ class Conexao:
             g, self.grav = self.grav, None
             if not g:
                 return
-            for nome in ("amostras", "janelas"):
-                g[nome][0].close()
+            g["amostras"][0].close()
             g["partes"].append({"caminho": g["amostras"][2], "n": g["n_parte"]})
-            self.ultima_gravacao = {"amostras": g["amostras"][2], "partes": g["partes"],
-                                    "janelas": g["janelas"][2], "n": g["n"]}
+            self.ultima_gravacao = {"amostras": g["amostras"][2], "partes": g["partes"], "n": g["n"]}
             self._evento(f"Gravação encerrada: {g['n']} amostras em {len(g['partes'])} parte(s)")
 
     def status_gravacao(self):
@@ -204,7 +202,8 @@ class Conexao:
             if self.grav:
                 self._rotacionar_se_preciso(agora)
                 f, w, _ = self.grav["amostras"]
-                w.writerow({"timestamp": agora.isoformat(timespec="milliseconds"), **d})
+                w.writerow({"timestamp": agora.isoformat(timespec="milliseconds"),
+                            "origem": "anuncio" if somente_rssi else "gatt", **d})
                 self.grav["n"] += 1
                 self.grav["n_parte"] += 1
                 if self.grav["n_parte"] % 200 == 0:
@@ -243,10 +242,6 @@ class Conexao:
                      "id_antena": j["anchor"], "prob": round(j["prob"], 4), "queda": j["queda"],
                      **j["features"]}
             self.janelas.append(linha)
-            if self.grav:
-                f, w, _ = self.grav["janelas"]
-                w.writerow(linha)
-                f.flush()
             self.hist_prob.setdefault(cinto, deque(maxlen=HIST_MAX)).append((agora, j["prob"]))
             if j["queda"]:
                 self.quedas.appendleft({
@@ -378,15 +373,14 @@ cx = conectar(*params)
 
 with gravacao_box:
     g = cx.status_gravacao()
+    # on_click: o callback roda antes do redesenho, então o clique não se perde no loop de rerun
     if g["ativa"]:
         st.success(f"Gravando: {g['n']} amostras ({g['seg'] / 60:.0f} min) — parte {g['parte']}")
-        if st.button("Parar gravação", width="stretch", type="primary"):
-            cx.parar_gravacao()
-            st.rerun()
+        st.button("Parar gravação", width="stretch", type="primary",
+                  key="btn_parar", on_click=cx.parar_gravacao)
     else:
-        if st.button("Gravar amostras", width="stretch"):
-            cx.iniciar_gravacao()
-            st.rerun()
+        st.button("Gravar amostras", width="stretch",
+                  key="btn_gravar", on_click=cx.iniciar_gravacao)
 
 s = cx.snapshot()
 
