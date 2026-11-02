@@ -15,7 +15,7 @@ e a detecção usa o modelo_mvp_8g.joblib (treinado no SisFall com essas faixas)
 
 Gravação e download de CSV (barra lateral):
   - "Gravar amostras" salva cada amostra em gravacoes/amostras_<data>.csv e cada
-    janela analisada em gravacoes/janelas_<data>.csv, com a anotação atual.
+    janela analisada em gravacoes/janelas_<data>.csv.
   - A seção "Baixar CSV" no fim da página baixa as janelas, as quedas e a última
     gravação de amostras.
 """
@@ -43,15 +43,16 @@ MODELO = os.environ.get("OQPNB_MODELO", "modelo_mvp_8g.joblib")
 LSB_G_PADRAO = 4096.0     # ±8 g (só usado se a detecção estiver desligada)
 LSB_DPS_PADRAO = 16.4     # ±2000 °/s (idem)
 PASTA_GRAVACOES = "gravacoes"
+ROTACAO_MIN = 60          # fecha o CSV de amostras e abre a próxima parte a cada N minutos
 JANELAS_MAX = 20000       # janelas guardadas em memória para download (~3 h)
 RSSI_WINDOW = 20
 SINAL_MAX = 500       # amostras guardadas por cinto para os gráficos (5 s a 100 Hz)
 HIST_MAX = 300        # pontos de probabilidade por cinto
 EVENTOS_MAX = 50
 AMOSTRA_COLS = ["timestamp", "id_cinto", "id_antena", "rssi", "seq", "ax", "ay", "az",
-                "gx", "gy", "gz", "eletrodos_conectados", "sinal_ad8232", "anotacao"]
+                "gx", "gy", "gz", "eletrodos_conectados", "sinal_ad8232"]
 JANELA_COLS = ["timestamp", "id_cinto", "id_antena", "prob", "queda",
-               "amax", "amin", "astd", "gmax", "gstd", "tilt", "jerk", "post_std", "anotacao"]
+               "amax", "amin", "astd", "gmax", "gstd", "tilt", "jerk", "post_std"]
 
 
 class Conexao:
@@ -92,7 +93,6 @@ class Conexao:
 
         # gravação / download
         self.janelas = deque(maxlen=JANELAS_MAX)
-        self.anotacao = ""
         self.grav = None            # {"amostras": (arquivo, writer), "janelas": (...), "n": int, ...}
         self.ultima_gravacao = None # caminhos da última gravação encerrada
 
@@ -125,21 +125,39 @@ class Conexao:
         self.conectado = False
 
     # ---------------- Gravação em CSV ----------------
+    def _abrir_csv(self, nome, cols, parte=None):
+        sufixo = f"_p{parte:02d}" if parte else ""
+        caminho = os.path.join(PASTA_GRAVACOES, f"{nome}_{self.grav['tag']}{sufixo}.csv")
+        f = open(caminho, "w", newline="", encoding="utf-8")
+        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        return (f, w, caminho)
+
     def iniciar_gravacao(self):
         with self.lock:
             if self.grav:
                 return
             os.makedirs(PASTA_GRAVACOES, exist_ok=True)
-            tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-            g = {"inicio": datetime.now(), "n": 0}
-            for nome, cols in (("amostras", AMOSTRA_COLS), ("janelas", JANELA_COLS)):
-                caminho = os.path.join(PASTA_GRAVACOES, f"{nome}_{tag}.csv")
-                f = open(caminho, "w", newline="", encoding="utf-8")
-                w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
-                w.writeheader()
-                g[nome] = (f, w, caminho)
-            self.grav = g
-            self._evento(f"Gravação iniciada: {g['amostras'][2]}")
+            agora = datetime.now()
+            self.grav = {"inicio": agora, "inicio_parte": agora, "n": 0, "n_parte": 0,
+                         "parte": 1, "partes": [], "tag": agora.strftime("%Y%m%d_%H%M%S")}
+            self.grav["amostras"] = self._abrir_csv("amostras", AMOSTRA_COLS, parte=1)
+            self.grav["janelas"] = self._abrir_csv("janelas", JANELA_COLS)
+            self._evento(f"Gravação iniciada: {self.grav['amostras'][2]}")
+
+    def _rotacionar_se_preciso(self, agora):
+        """Chamado com o lock: fecha a parte atual de amostras e abre a próxima após ROTACAO_MIN."""
+        g = self.grav
+        if (agora - g["inicio_parte"]).total_seconds() < ROTACAO_MIN * 60:
+            return
+        f, _, caminho = g["amostras"]
+        f.close()
+        g["partes"].append({"caminho": caminho, "n": g["n_parte"]})
+        g["parte"] += 1
+        g["n_parte"] = 0
+        g["inicio_parte"] = agora
+        g["amostras"] = self._abrir_csv("amostras", AMOSTRA_COLS, parte=g["parte"])
+        self._evento(f"Gravação: parte {g['parte']} iniciada ({os.path.basename(g['amostras'][2])})")
 
     def parar_gravacao(self):
         with self.lock:
@@ -148,13 +166,16 @@ class Conexao:
                 return
             for nome in ("amostras", "janelas"):
                 g[nome][0].close()
-            self.ultima_gravacao = {"amostras": g["amostras"][2], "janelas": g["janelas"][2], "n": g["n"]}
-            self._evento(f"Gravação encerrada: {g['n']} amostras em {g['amostras'][2]}")
+            g["partes"].append({"caminho": g["amostras"][2], "n": g["n_parte"]})
+            self.ultima_gravacao = {"amostras": g["amostras"][2], "partes": g["partes"],
+                                    "janelas": g["janelas"][2], "n": g["n"]}
+            self._evento(f"Gravação encerrada: {g['n']} amostras em {len(g['partes'])} parte(s)")
 
     def status_gravacao(self):
         with self.lock:
             if self.grav:
                 return {"ativa": True, "n": self.grav["n"], "arquivo": self.grav["amostras"][2],
+                        "parte": self.grav["parte"],
                         "seg": (datetime.now() - self.grav["inicio"]).total_seconds()}
             return {"ativa": False, "ultima": self.ultima_gravacao}
 
@@ -181,11 +202,12 @@ class Conexao:
         somente_rssi = d.pop("somente_rssi")
         with self.lock:
             if self.grav:
+                self._rotacionar_se_preciso(agora)
                 f, w, _ = self.grav["amostras"]
-                w.writerow({"timestamp": agora.isoformat(timespec="milliseconds"), **d,
-                            "anotacao": self.anotacao})
+                w.writerow({"timestamp": agora.isoformat(timespec="milliseconds"), **d})
                 self.grav["n"] += 1
-                if self.grav["n"] % 200 == 0:
+                self.grav["n_parte"] += 1
+                if self.grav["n_parte"] % 200 == 0:
                     f.flush()
             e = self.estado.setdefault((cinto, antena), {"rssi": [], "t": 0, "gatt": False})
             e["rssi"] = (e["rssi"] + [d["rssi"]])[-RSSI_WINDOW:]
@@ -219,7 +241,7 @@ class Conexao:
         with self.lock:
             linha = {"timestamp": agora.isoformat(timespec="milliseconds"), "id_cinto": cinto,
                      "id_antena": j["anchor"], "prob": round(j["prob"], 4), "queda": j["queda"],
-                     **j["features"], "anotacao": self.anotacao}
+                     **j["features"]}
             self.janelas.append(linha)
             if self.grav:
                 f, w, _ = self.grav["janelas"]
@@ -231,7 +253,7 @@ class Conexao:
                     "data": agora.strftime("%Y-%m-%d"),
                     "hora": agora.strftime("%H:%M:%S"), "cinto": cinto, "antena": j["anchor"],
                     "prob": round(j["prob"], 2), "amax (g)": j["features"]["amax"],
-                    "tilt (graus)": j["features"]["tilt"], "anotacao": self.anotacao,
+                    "tilt (graus)": j["features"]["tilt"],
                 })
                 self._evento(f"QUEDA cinto {cinto} prob {j['prob']:.2f} perto da antena {j['anchor']}")
 
@@ -338,9 +360,7 @@ with st.sidebar:
     limiar = st.slider("Limiar de alarme (0 = usar o do modelo)", 0.0, 1.0, 0.0, 0.05)
     st.divider()
     st.header("Gravação")
-    anotacao = st.text_input("Anotação (o que está acontecendo agora)",
-                             placeholder="ex.: queda frente 1, sentar rápido, andando",
-                             help="Vai junto em cada linha gravada. Útil para calcular acertos depois.")
+    gravacao_box = st.container()     # preenchido depois que a conexão existir
     st.divider()
     st.header("Tela")
     auto = st.toggle("Atualizar automaticamente", value=True)
@@ -355,12 +375,11 @@ with st.sidebar:
         st.rerun()
 
 cx = conectar(*params)
-cx.anotacao = anotacao.strip()
 
-with st.sidebar:
+with gravacao_box:
     g = cx.status_gravacao()
     if g["ativa"]:
-        st.success(f"Gravando: {g['n']} amostras ({g['seg']:.0f} s)")
+        st.success(f"Gravando: {g['n']} amostras ({g['seg'] / 60:.0f} min) — parte {g['parte']}")
         if st.button("Parar gravação", width="stretch", type="primary"):
             cx.parar_gravacao()
             st.rerun()
@@ -627,7 +646,8 @@ with detalhes_tab:
 
     with st.expander("Tabela RSSI por cinto × antena"):
         if s["tabela"]:
-            st.dataframe(pd.DataFrame(s["tabela"]), width="stretch", hide_index=True)
+            df_rssi = pd.DataFrame(s["tabela"]).rename(columns={"idade (s)": "Janela de Conexão (s)"})
+            st.dataframe(df_rssi, width="stretch", hide_index=True)
         else:
             st.caption("Sem tabela RSSI disponível.")
 
@@ -645,7 +665,7 @@ with detalhes_tab:
                            file_name=f"janelas_{tag}.csv", mime="text/csv",
                            disabled=not s["n_janelas"], width="stretch")
     with d2:
-        cols_q = ["data", "hora", "cinto", "antena", "prob", "amax (g)", "tilt (graus)", "anotacao"]
+        cols_q = ["data", "hora", "cinto", "antena", "prob", "amax (g)", "tilt (graus)"]
         st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
                            file_name=f"quedas_{tag}.csv", mime="text/csv",
                            disabled=not s["quedas"], width="stretch")
@@ -653,21 +673,22 @@ with detalhes_tab:
         g = cx.status_gravacao()
         if g["ativa"]:
             st.button("Amostras: pare a gravação para baixar", disabled=True, width="stretch")
-        elif g["ultima"] and os.path.exists(g["ultima"]["amostras"]):
-            caminho = g["ultima"]["amostras"]
-            st_ = os.stat(caminho)
-            st.download_button(f"Amostras da última gravação ({g['ultima']['n']})",
-                               _ler_arquivo(caminho, st_.st_mtime, st_.st_size),
-                               file_name=os.path.basename(caminho), mime="text/csv",
-                               width="stretch")
+        elif g["ultima"]:
+            partes = [p for p in g["ultima"]["partes"] if os.path.exists(p["caminho"])]
+            if not partes:
+                st.button("Amostras: arquivos da última gravação não encontrados", disabled=True, width="stretch")
+            for i, p in enumerate(partes, 1):
+                st_ = os.stat(p["caminho"])
+                rotulo = (f"Amostras da última gravação ({p['n']})" if len(partes) == 1
+                          else f"Amostras — parte {i}/{len(partes)} ({p['n']})")
+                st.download_button(rotulo, _ler_arquivo(p["caminho"], st_.st_mtime, st_.st_size),
+                                   file_name=os.path.basename(p["caminho"]), mime="text/csv",
+                                   width="stretch", key=f"dl_parte_{i}")
         else:
             st.button("Amostras: use 'Gravar amostras' na barra lateral", disabled=True,
                       width="stretch")
-    st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}")
-
-    with st.expander("Gravação local"):
-        g = cx.status_gravacao()
-        st.write(g)
+    st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}. "
+               f"O CSV de amostras é dividido em partes (_p01, _p02, ...) a cada {ROTACAO_MIN} min.")
 
 if auto:
     time.sleep(intervalo)
