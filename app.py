@@ -402,14 +402,16 @@ with monitor_tab:
                         st.caption(f"Última leitura há {m['idade']:.1f}s")
 
     st.subheader("Probabilidade de queda")
+    N_PROB = 10
     if s["hist"]:
         linhas = []
         for c, h in s["hist"].items():
-            ultimos = list(h)[-10:]
-            for t, p in ultimos:
+            ultimos = list(h)[-N_PROB:]
+            # posição fixa: 0 = janela mais recente, -1 = anterior, ... (eixo não depende do horário)
+            for pos, (t, p) in zip(range(-(len(ultimos) - 1), 1), ultimos):
                 dt = pd.to_datetime(t)
                 linhas.append({
-                    "horario": dt,
+                    "pos": pos,
                     "cinto": nome_cinto(c),
                     "probabilidade": float(p),
                     "horario_label": dt.strftime("%H:%M:%S"),
@@ -418,9 +420,12 @@ with monitor_tab:
 
         if linhas:
             df = pd.DataFrame(linhas)
-            chart = alt.Chart(df).mark_line().encode(
-                x=alt.X("horario:T", title="Horário", axis=alt.Axis(format='%H:%M:%S')),
-                y=alt.Y("probabilidade:Q", title="Probabilidade"),
+            base = alt.Chart(df).encode(
+                x=alt.X("pos:Q", title="Janelas (0 = mais recente)",
+                        scale=alt.Scale(domain=[-(N_PROB - 1), 0], nice=False),
+                        axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), format="d", grid=True)),
+                y=alt.Y("probabilidade:Q", title="Probabilidade",
+                        scale=alt.Scale(domain=[0, 1], nice=False)),
                 color=alt.Color("cinto:N", title="Cinto"),
                 tooltip=[
                     alt.Tooltip("horario_label:N", title="Horário"),
@@ -429,7 +434,11 @@ with monitor_tab:
                     alt.Tooltip("probabilidade:Q", title="Probabilidade", format=".2f"),
                 ],
             )
-            st.altair_chart(chart, use_container_width=True)
+            chart = base.mark_line() + base.mark_point(filled=True, size=60)
+            if cx.detector is not None:
+                limiar_df = pd.DataFrame({"y": [cx.detector.limiar]})
+                chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], color="red").encode(y="y:Q")
+            st.altair_chart(chart.properties(height=260), use_container_width=True)
         else:
             st.caption("Nenhuma probabilidade de queda registrada.")
 
@@ -444,56 +453,87 @@ with detalhes_tab:
     col1, col2, col3 = st.columns(3)
     col1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
     col2.metric("Pacotes inválidos", s["invalidos"])
+    if cx.detector is not None:
+        col3.metric("Modelo", os.path.basename(MODELO), f"limiar {cx.detector.limiar:.2f}", delta_color="off")
+        col3.caption(s["faixa"])
+    else:
+        col3.metric("Modelo", "desligado")
+        col3.caption(os.path.basename(MODELO) if os.path.exists(MODELO) else f"{MODELO} não encontrado")
 
     if s["erro"]:
         st.error(f"Erro MQTT: {s['erro']}")
 
-    st.subheader("Status das antenas")
-    if s["anchors"]:
-        antenas = sorted(s["anchors"].items())
-        cols = st.columns(min(4, max(1, len(antenas))))
-        for i, (antena, status) in enumerate(antenas):
-            online = status == "online"
-            with cols[i % len(cols)]:
-                with st.container(border=True):
-                    st.markdown(f"### Antena {antena}")
-                    if online:
-                        st.success("ONLINE")
-                    else:
-                        st.error("OFFLINE")
-    else:
-        st.caption("Nenhuma antena reportou status ainda.")
+    # métricas internas (uma linha de cards; valores por cinto quando houver vários)
+    def _por_cinto(d, fmt):
+        if not d:
+            return "—"
+        if len(d) == 1:
+            return fmt(next(iter(d.values())))
+        return " | ".join(f"{nome_cinto(k)}: {fmt(v)}" for k, v in sorted(d.items()))
 
-    st.subheader("Status dos cintos")
-    cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
-    if cinto_ids:
-        cols = st.columns(min(4, max(1, len(cinto_ids))))
-        for i, cinto in enumerate(cinto_ids):
-            online = cinto in s["melhores"]
-            with cols[i % len(cols)]:
+    prob_atual = {k: v[-1][1] for k, v in s["hist"].items() if v}
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1.metric("Amostras recebidas", s["total"])
+    m2.metric("Cintos ativos", len(s["melhores"]))
+    m3.metric("Prob. queda atual", _por_cinto(prob_atual, lambda v: f"{v:.2f}"))
+    m4.metric("Taxa (Hz)", _por_cinto(s["taxa"], lambda v: f"{v:.0f}"))
+    m5.metric("Amostras perdidas", _por_cinto(s["perdas"], lambda v: f"{100 * v:.1f}%"))
+    m6.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))
+
+    st.subheader("Status do sistema")
+    col_cinto, col_antenas = st.columns([1, 2])
+
+    with col_cinto:
+        st.markdown("**Cinto**")
+        cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
+        if cinto_ids:
+            for cinto in cinto_ids:
+                m = s["melhores"].get(cinto)
+                last = (m or {}).get("last") or {}
                 with st.container(border=True):
-                    nome_exibicao = nome_cinto(cinto)
-                    st.markdown(f"### {nome_exibicao}")
-                    if online:
+                    st.markdown(f"### {nome_cinto(cinto)}")
+                    if m:
                         st.success("ONLINE")
+                        st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
+                        st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz | "
+                                   f"Eletrodos: {'OK' if last.get('eletrodos_conectados') == 1 else 'soltos'}")
+                        st.caption(f"Última leitura há {m['idade']:.1f} s")
                     else:
                         st.error("OFFLINE")
-    else:
-        st.caption("Nenhum cinto reportou status ainda.")
+                        st.caption("Sem leitura nos últimos 10 s")
+        else:
+            with st.container(border=True):
+                st.markdown("### —")
+                st.warning("Nenhum cinto detectado")
+
+    with col_antenas:
+        st.markdown("**Antenas**")
+        ANTENAS = [1, 2, 3, 4]
+        status_antenas = {str(k): v for k, v in s["anchors"].items()}
+        # RSSI mais recente visto por cada antena (de qualquer cinto)
+        rssi_antena = {}
+        for linha in s["tabela"]:
+            a = str(linha["antena"])
+            if linha["RSSI atual"] is not None and (a not in rssi_antena or linha["idade (s)"] < rssi_antena[a][1]):
+                rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"])
+        for lin in range(2):
+            c_a, c_b = st.columns(2)
+            for col, antena in zip((c_a, c_b), ANTENAS[lin * 2:lin * 2 + 2]):
+                status = status_antenas.get(str(antena))
+                with col:
+                    with st.container(border=True):
+                        st.markdown(f"### Antena {antena}")
+                        if status == "online":
+                            st.success("ONLINE")
+                        elif status == "offline":
+                            st.error("OFFLINE")
+                        else:
+                            st.warning("SEM STATUS")
+                        r = rssi_antena.get(str(antena))
+                        st.caption(f"RSSI: {r[0]} dBm (há {r[1]:.0f} s)" if r else "RSSI: —")
 
     st.subheader("Eventos do sistema")
     st.text("\n".join(s["eventos"]) or "Sem eventos.")
-
-    st.subheader("Dados de rede e métricas internas")
-    tech = {
-        "total_amostras": s["total"],
-        "cintos_ativos": len(s["melhores"]),
-        "probabilidade_queda_por_cinto": {k: round(v[-1][1], 4) if v else None for k, v in s["hist"].items()},
-        "taxa_por_cinto_hz": {k: round(v, 2) for k, v in s["taxa"].items()},
-        "perdas_por_cinto": {k: round(v, 4) for k, v in s["perdas"].items()},
-        "resets_por_cinto": {k: v for k, v in s["resets"].items()},
-    }
-    st.json(tech)
 
     st.subheader("Gráficos de sinais")
     if s["sinal"]:
