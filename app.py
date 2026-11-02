@@ -438,7 +438,7 @@ with monitor_tab:
             if cx.detector is not None:
                 limiar_df = pd.DataFrame({"y": [cx.detector.limiar]})
                 chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], color="red").encode(y="y:Q")
-            st.altair_chart(chart.properties(height=260), use_container_width=True)
+            st.altair_chart(chart.properties(height=260), width="stretch")
         else:
             st.caption("Nenhuma probabilidade de queda registrada.")
 
@@ -482,6 +482,7 @@ with detalhes_tab:
 
     st.subheader("Status do sistema")
     col_cinto, col_antenas = st.columns([1, 2])
+    ALT_CARD = 190                       # mesma altura para o card do cinto e o das antenas
 
     with col_cinto:
         st.markdown("**Cinto**")
@@ -490,21 +491,20 @@ with detalhes_tab:
             for cinto in cinto_ids:
                 m = s["melhores"].get(cinto)
                 last = (m or {}).get("last") or {}
-                with st.container(border=True):
-                    st.markdown(f"### {nome_cinto(cinto)}")
+                with st.container(border=True, height=ALT_CARD):
                     if m:
-                        st.success("ONLINE")
+                        st.markdown(f"**{nome_cinto(cinto)}** :green[● ONLINE]")
                         st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
                         st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz | "
                                    f"Eletrodos: {'OK' if last.get('eletrodos_conectados') == 1 else 'soltos'}")
                         st.caption(f"Última leitura há {m['idade']:.1f} s")
                     else:
-                        st.error("OFFLINE")
+                        st.markdown(f"**{nome_cinto(cinto)}** :red[● OFFLINE]")
                         st.caption("Sem leitura nos últimos 10 s")
         else:
-            with st.container(border=True):
-                st.markdown("### —")
-                st.warning("Nenhum cinto detectado")
+            with st.container(border=True, height=ALT_CARD):
+                st.markdown("**—** :orange[● SEM CINTO]")
+                st.caption("Nenhum cinto detectado")
 
     with col_antenas:
         st.markdown("**Antenas**")
@@ -516,24 +516,23 @@ with detalhes_tab:
             a = str(linha["antena"])
             if linha["RSSI atual"] is not None and (a not in rssi_antena or linha["idade (s)"] < rssi_antena[a][1]):
                 rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"])
-        for lin in range(2):
-            c_a, c_b = st.columns(2)
-            for col, antena in zip((c_a, c_b), ANTENAS[lin * 2:lin * 2 + 2]):
+        with st.container(border=True, height=ALT_CARD):
+            cols = st.columns(len(ANTENAS))
+            for col, antena in zip(cols, ANTENAS):
                 status = status_antenas.get(str(antena))
+                if status == "online":
+                    badge, cor = "ONLINE", "green"
+                elif status == "offline":
+                    badge, cor = "OFFLINE", "red"
+                else:
+                    badge, cor = "SEM STATUS", "orange"
+                r = rssi_antena.get(str(antena))
                 with col:
-                    with st.container(border=True):
-                        st.markdown(f"### Antena {antena}")
-                        if status == "online":
-                            st.success("ONLINE")
-                        elif status == "offline":
-                            st.error("OFFLINE")
-                        else:
-                            st.warning("SEM STATUS")
-                        r = rssi_antena.get(str(antena))
-                        st.caption(f"RSSI: {r[0]} dBm (há {r[1]:.0f} s)" if r else "RSSI: —")
-
-    st.subheader("Eventos do sistema")
-    st.text("\n".join(s["eventos"]) or "Sem eventos.")
+                    st.markdown(f"**Antena {antena}**")
+                    st.markdown(f":{cor}[● {badge}]")
+                    st.metric("RSSI", f"{r[0]} dBm" if r else "—",
+                              f"há {r[1]:.0f} s" if r else None, delta_color="off",
+                              label_visibility="collapsed")
 
     st.subheader("Gráficos de sinais")
     if s["sinal"]:
