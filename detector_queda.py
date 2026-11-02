@@ -146,6 +146,12 @@ class DetectorQuedaStream:
         self.desde[cinto] = 0
         self.resets[cinto] += 1
 
+    def atualizar_rssi(self, cinto, antena, rssi):
+        """RSSI vindo só do anúncio BLE (antena sem GATT): conta para a âncora mais próxima,
+        mas não entra na janela de amostras."""
+        if rssi is not None:
+            self.rssi[cinto][antena] = rssi
+
     def adicionar(self, cinto, antena, rssi, raw, seq=None, agora=None):
         agora = time.time() if agora is None else agora
         if rssi is not None:

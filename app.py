@@ -64,7 +64,8 @@ class Conexao:
         self.lsb_g = LSB_G_PADRAO
         self.lsb_dps = LSB_DPS_PADRAO
         self.faixa = None
-        self.estado = {}            # (cinto, antena) -> {"rssi": [...], "last": dict, "t": float}
+        self.estado = {}            # (cinto, antena) -> {"rssi": [...], "t": float, "gatt": bool}
+        self.ultima = {}            # cinto -> última leitura de sensores (só de pacotes GATT)
         self.anchors_status = {}    # antena -> "online"/"offline"
         self.sinal = {}             # cinto -> deque[(datetime, |a| g, |w| °/s, ecg)]
         self.hist_prob = {}         # cinto -> deque[(datetime, prob)]
@@ -177,6 +178,7 @@ class Conexao:
         agora = datetime.now()
         t = time.time()
         cinto, antena = d["id_cinto"], d["id_antena"]
+        somente_rssi = d.pop("somente_rssi")
         with self.lock:
             if self.grav:
                 f, w, _ = self.grav["amostras"]
@@ -185,13 +187,22 @@ class Conexao:
                 self.grav["n"] += 1
                 if self.grav["n"] % 200 == 0:
                     f.flush()
-            amag = (d["ax"] ** 2 + d["ay"] ** 2 + d["az"] ** 2) ** 0.5 / self.lsb_g
-            gmag = (d["gx"] ** 2 + d["gy"] ** 2 + d["gz"] ** 2) ** 0.5 / self.lsb_dps
-            self.total += 1
-            e = self.estado.setdefault((cinto, antena), {"rssi": [], "last": None, "t": 0})
+            e = self.estado.setdefault((cinto, antena), {"rssi": [], "t": 0, "gatt": False})
             e["rssi"] = (e["rssi"] + [d["rssi"]])[-RSSI_WINDOW:]
-            e["last"] = d
             e["t"] = t
+            e["gatt"] = not somente_rssi
+
+        # antena sem GATT: só RSSI do anúncio -> entra na localização, não nos sinais
+        if somente_rssi:
+            if self.detector is not None:
+                self.detector.atualizar_rssi(cinto, antena, d["rssi"])
+            return
+
+        amag = (d["ax"] ** 2 + d["ay"] ** 2 + d["az"] ** 2) ** 0.5 / self.lsb_g
+        gmag = (d["gx"] ** 2 + d["gy"] ** 2 + d["gz"] ** 2) ** 0.5 / self.lsb_dps
+        with self.lock:
+            self.total += 1
+            self.ultima[cinto] = d
             self.sinal.setdefault(cinto, deque(maxlen=SINAL_MAX)).append((agora, amag, gmag, d["sinal_ad8232"]))
             tx = self.taxa.setdefault(cinto, {"n": 0, "t0": t, "hz": 0.0})
             tx["n"] += 1
@@ -240,9 +251,11 @@ class Conexao:
                 linhas.append({"cinto": cinto, "antena": antena,
                                "RSSI atual": r[-1] if r else None,
                                "RSSI médio": round(media, 1) if media is not None else None,
+                               "origem": "GATT" if e["gatt"] else "anúncio",
                                "amostras": len(r), "idade (s)": round(idade, 1)})
                 if media is not None and idade <= 10 and (cinto not in melhores or media > melhores[cinto]["rssi"]):
-                    melhores[cinto] = {"antena": antena, "rssi": media, "last": e["last"], "idade": idade}
+                    melhores[cinto] = {"antena": antena, "rssi": media, "last": self.ultima.get(cinto),
+                                       "idade": idade, "gatt": e["gatt"]}
             det = self.detector
             return {
                 "tabela": linhas, "melhores": melhores,

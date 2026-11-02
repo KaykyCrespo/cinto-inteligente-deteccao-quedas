@@ -1,20 +1,25 @@
 /*
  * ============================================================
- * ANCHOR (ANTENA) MVP v1 - ESP32 (BLE GATT CLIENT + MQTT)
+ * ANCHOR (ANTENA) MVP v1 - ESP32 (MODO HÍBRIDO: GATT + SCAN RSSI)
  * ============================================================
  *
- * Especificações implementadas:
+ * Arquitetura Híbrida implementada:
  * 1. Possui Código de Ambiente (CODIGO_AMBIENTE) e ID próprio (ID_ANTENA).
- * 2. Conexão GATT automática ao ligar e verificação contínua de queda
- *    de conexão (retoma a busca e reconecta automaticamente se cair).
- * 3. Filtra e recebe informações SOMENTE de dispositivos Bluetooth que
- *    possuírem o mesmo Código de Ambiente (no anúncio BLE e na validação
- *    de cada pacote recebido via GATT).
- * 4. Envia seu CODIGO_AMBIENTE ao cinto logo após conectar via GATT para
- *    que o cinto também autorize o envio dos pacotes.
- * 5. Mede o RSSI em relação ao cinto conectado e repassa cada pacote
- *    adicionando seu ID_ANTENA e o RSSI via MQTT no formato exato:
- *    {codigo_ambiente;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+ * 2. Filtra SOMENTE dispositivos Bluetooth do projeto que possuírem o
+ *    mesmo CODIGO_AMBIENTE (no anúncio `{CODIGO_AMBIENTE;ID_CINTO}` e nos
+ *    pacotes GATT).
+ * 3. Operação em Modo Conectado GATT (Antena principal do fluxo rápido):
+ *    - Quando o anúncio do cinto está CONECTÁVEL (cinto sem antena GATT),
+ *      a antena conecta automaticamente via GATT, valida seu CODIGO_AMBIENTE
+ *      e recebe o fluxo de alta frequência (100 Hz) com sensores + RSSI:
+ *      {codigo_ambiente;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+ * 4. Operação em Modo Scanner RSSI (Demais antenas da sala ou enquanto sem GATT):
+ *    - Quando a antena NÃO está conectada via GATT ao cinto, ela escuta os
+ *      anúncios `{CODIGO_AMBIENTE;ID_CINTO}` do cinto, calcula o RSSI e
+ *      envia via MQTT o pacote com os campos de sensores vazios:
+ *      {codigo_ambiente;id_antena;rssi;id_cinto;;;;;;;;}
+ *    - Se a conexão GATT da outra antena cair, o cinto volta a anunciar como
+ *      conectável e uma antena disponível assume a conexão GATT automaticamente.
  * ============================================================
  */
 
@@ -35,7 +40,7 @@
 #define WIFI_SSID       "NOME_DO_SEU_WIFI"
 #define WIFI_PASSWORD   "SENHA_DO_SEU_WIFI"
 
-#define MQTT_BROKER     "192.168.15.145" //.42 enzo .145 kayky
+#define MQTT_BROKER     "192.168.15.82" //.46 enzo .82 kayky
 #define MQTT_PORT       1883
 #define MQTT_USER       ""
 #define MQTT_PASS       ""
@@ -49,11 +54,13 @@
 #define CHAR_DATA_UUID "FFF2" // Notify: Recebe pacotes do Cinto
 
 // ============================================================
-// ESTRUTURA DA FILA FREERTOS (Callback BLE -> Loop MQTT)
+// ESTRUTURA DA FILA FREERTOS (BLE GATT / Scan -> Loop MQTT)
 // ============================================================
 struct ItemFila {
   int  rssi;
-  char restoDadosCinto[80]; // Contém: "id_cinto;ax;ay;az;gx;gy;gz;eletrodos;ad8232}"
+  // Quando conectado GATT : "id_cinto;ax;ay;az;gx;gy;gz;eletrodos;ad8232}"
+  // Quando só anúncio RSSI: "id_cinto;;;;;;;;}"
+  char restoDadosCinto[80];
 };
 
 QueueHandle_t filaPacotes;
@@ -77,7 +84,7 @@ char topicoStatus[56];
 
 // Contadores e temporizadores
 volatile uint32_t pacotesRecebidosGATT  = 0;
-volatile uint32_t pacotesRejeitadosAmb  = 0;
+volatile uint32_t pacotesRecebidosAdv   = 0;
 volatile uint32_t pacotesPerdidosFila   = 0;
 uint32_t          pacotesPublicadosMQTT = 0;
 
@@ -88,7 +95,46 @@ unsigned long tempoUltimaChecagemBleMs   = 0;
 unsigned long tempoUltimaTentativaConnMs = 0;
 
 // ============================================================
-// CALLBACK DE NOTIFICAÇÃO GATT (Recebe pacote do Cinto)
+// EXTRAÇÃO E VALIDAÇÃO DE AMBIENTE NO ANÚNCIO DO CINTO
+// ============================================================
+// Verifica se o anúncio pertence ao mesmo CODIGO_AMBIENTE e extrai o ID_CINTO.
+// O cinto anuncia no Manufacturer Data: [0xFF, 0xFF] + "{CODIGO_AMBIENTE;ID_CINTO}"
+bool extrairIdCintoDoAnuncio(const NimBLEAdvertisedDevice* dev, int* idCintoOut) {
+  size_t tamAmb = strlen(CODIGO_AMBIENTE);
+
+  // 1. Tenta extrair do Manufacturer Data: [0xFF, 0xFF] + "{OQPNB;1}"
+  if (dev->haveManufacturerData()) {
+    std::string mfg = dev->getManufacturerData();
+    if (mfg.length() >= 2 + 1 + tamAmb + 2) {
+      const char* payload = mfg.c_str() + 2; // Pula os 2 bytes do Company ID (0xFFFF)
+      if (payload[0] == '{' &&
+          strncmp(payload + 1, CODIGO_AMBIENTE, tamAmb) == 0 &&
+          payload[1 + tamAmb] == ';') {
+        int idLido = atoi(payload + 1 + tamAmb + 1);
+        if (idLido > 0) {
+          *idCintoOut = idLido;
+          return true;
+        }
+      }
+    }
+  }
+
+  // 2. Fallback: tenta extrair do Nome do dispositivo ("OQPNB_CINTO_01")
+  std::string nome = dev->getName();
+  std::string prefixo = std::string(CODIGO_AMBIENTE) + "_CINTO_";
+  if (nome.rfind(prefixo, 0) == 0) {
+    int idLido = atoi(nome.c_str() + prefixo.length());
+    if (idLido > 0) {
+      *idCintoOut = idLido;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ============================================================
+// CALLBACK DE NOTIFICAÇÃO GATT (Fluxo rápido com sensores)
 // ============================================================
 void callbackNotificacaoGATT(NimBLERemoteCharacteristic* pBLERemoteCharacteristic,
                              uint8_t* pData,
@@ -100,22 +146,19 @@ void callbackNotificacaoGATT(NimBLERemoteCharacteristic* pBLERemoteCharacteristi
   memcpy(buffer, pData, length);
   buffer[length] = '\0';
 
-  // Formato esperado do cinto:
+  // Formato esperado do cinto via GATT:
   // {codigo_ambiente;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
   size_t tamCodigo = strlen(CODIGO_AMBIENTE);
 
-  // Valida se começa com "{<CODIGO_AMBIENTE>;" e termina com "}"
   if (buffer[0] != '{' ||
       strncmp(buffer + 1, CODIGO_AMBIENTE, tamCodigo) != 0 ||
       buffer[1 + tamCodigo] != ';' ||
       buffer[length - 1] != '}') {
-    pacotesRejeitadosAmb++;
     return; // Descarta pacotes que não possuam o mesmo código de ambiente
   }
 
   pacotesRecebidosGATT++;
 
-  // Extrai o sufixo após "{<CODIGO_AMBIENTE>;" -> "id_cinto;ax;ay;az;gx;gy;gz;eletrodos;ad8232}"
   ItemFila item;
   item.rssi = rssiAtual;
   strncpy(item.restoDadosCinto, buffer + 1 + tamCodigo + 1, sizeof(item.restoDadosCinto) - 1);
@@ -138,44 +181,47 @@ class ClientCallbacks : public NimBLEClientCallbacks {
   void onDisconnect(NimBLEClient* pClientInstance, int reason) override {
     conectadoGATT = false;
     deveConectar  = false;
-    Serial.printf("[GATT] Conexao com o cinto caiu (motivo=%d). Retomando busca...\n", reason);
+    Serial.printf("[GATT] Conexao com o cinto caiu (motivo=%d). Voltando ao modo Scanner RSSI + Reconexao...\n", reason);
   }
 } clientCallbacks;
 
 // ============================================================
-// CALLBACK DO SCANNER BLE (Filtra pelo Código de Ambiente)
+// CALLBACK DO SCANNER BLE (Envia RSSI do anúncio e detecta GATT livre)
 // ============================================================
 class ScanCallbacks : public NimBLEScanCallbacks {
   void onResult(const NimBLEAdvertisedDevice* advertisedDevice) override {
-    if (conectadoGATT || deveConectar) return;
+    // Se esta antena já está conectada via GATT ao cinto, o RSSI + sensores já vêm pelo GATT
+    if (conectadoGATT) return;
 
-    // Ignora anúncios não-conectáveis (ex: versões antigas sem servidor GATT)
-    if (!advertisedDevice->isConnectable()) return;
-
-    std::string nome    = advertisedDevice->getName();
-    std::string mfgData = advertisedDevice->haveManufacturerData()
-                            ? advertisedDevice->getManufacturerData()
-                            : std::string();
-
-    // Verifica se o dispositivo possui o mesmo CODIGO_AMBIENTE (no nome ou no Manufacturer Data)
-    bool mesmoAmbiente = (nome.find(CODIGO_AMBIENTE) != std::string::npos) ||
-                         (mfgData.find(CODIGO_AMBIENTE) != std::string::npos);
-
-    if (!mesmoAmbiente) {
-      return; // Ignora dispositivos de outros ambientes
+    int idCinto = 0;
+    if (!extrairIdCintoDoAnuncio(advertisedDevice, &idCinto)) {
+      return; // Ignora dispositivos que não têm o mesmo CODIGO_AMBIENTE
     }
 
-    Serial.printf("[SCAN] Cinto do ambiente '%s' encontrado: %s (MAC=%s, RSSI=%d dBm)\n",
-                  CODIGO_AMBIENTE,
-                  nome.empty() ? "(sem nome)" : nome.c_str(),
-                  advertisedDevice->getAddress().toString().c_str(),
-                  advertisedDevice->getRSSI());
+    int rssiAnuncio = advertisedDevice->getRSSI();
+    rssiAtual = rssiAnuncio;
+    pacotesRecebidosAdv++;
 
-    enderecoAlvo = advertisedDevice->getAddress();
-    rssiAtual    = advertisedDevice->getRSSI();
-    deveConectar = true;
-    // OBS: Não chamamos stop() dentro do callback para evitar conflito na task NimBLE;
-    // o stop() é chamado com segurança no loop() antes de conectar.
+    // 1. Enfileira pacote de RSSI com variáveis de sensores vazias:
+    //    Resultado final no MQTT: {codigo_ambiente;id_antena;rssi;id_cinto;;;;;;;;}
+    ItemFila item;
+    item.rssi = rssiAnuncio;
+    snprintf(item.restoDadosCinto, sizeof(item.restoDadosCinto), "%d;;;;;;;;}", idCinto);
+
+    if (xQueueSend(filaPacotes, &item, 0) != pdTRUE) {
+      pacotesPerdidosFila++;
+    }
+
+    // 2. Se o anúncio do cinto for CONECTÁVEL (ou seja, o cinto está sem antena GATT),
+    //    agenda a conexão GATT automática para que esta antena receba o fluxo de sensores.
+    if (advertisedDevice->isConnectable() && !deveConectar) {
+      Serial.printf("[SCAN] Cinto %d (%s) disponivel para GATT (RSSI=%d dBm). Agendando conexao...\n",
+                    idCinto,
+                    advertisedDevice->getAddress().toString().c_str(),
+                    rssiAnuncio);
+      enderecoAlvo = advertisedDevice->getAddress();
+      deveConectar = true;
+    }
   }
 
   void onScanEnd(const NimBLEScanResults& results, int reason) override {
@@ -191,7 +237,6 @@ class ScanCallbacks : public NimBLEScanCallbacks {
 void iniciarScanBLE() {
   if (conectadoGATT || deveConectar) return;
   if (pBLEScan && !pBLEScan->isScanning()) {
-    Serial.printf("[SCAN] Procurando cinto conectavel com codigo '%s'...\n", CODIGO_AMBIENTE);
     pBLEScan->start(0, false, true);
   }
 }
@@ -208,35 +253,29 @@ void limparClienteBLE() {
 }
 
 bool conectarAoCinto() {
-  // Para o scanner com segurança fora do callback antes de iniciar a conexão GATT
   if (pBLEScan && pBLEScan->isScanning()) {
     pBLEScan->stop();
     delay(20);
   }
 
-  // Garante um cliente limpo no estado DISCONNECTED
   limparClienteBLE();
 
-  Serial.printf("[GATT] Conectando ao cinto %s...\n", enderecoAlvo.toString().c_str());
+  Serial.printf("[GATT] Tentando conectar ao cinto %s...\n", enderecoAlvo.toString().c_str());
 
   pClient = NimBLEDevice::createClient();
   pClient->setClientCallbacks(&clientCallbacks, false);
-
-  // Parâmetros compatíveis com coexistência Wi-Fi + BLE (scanWindow=32 < scanInterval=64)
-  // Intervalo de conexão: 12 * 1.25ms = 15ms | Timeout supervisão: 200 * 10ms = 2000ms
   pClient->setConnectionParams(12, 12, 0, 200, 64, 32);
-  pClient->setConnectTimeout(5000);
+  pClient->setConnectTimeout(3000);
 
   if (!pClient->connect(enderecoAlvo)) {
-    Serial.println("[GATT] Falha ao estabelecer conexao fisica. Tentando novamente em breve...");
+    Serial.println("[GATT] Nao conectou (outra antena pode ter assumido). Mantendo envio de RSSI via anuncio...");
     limparClienteBLE();
     return false;
   }
 
-  // Localiza o serviço GATT do cinto
   NimBLERemoteService* pService = pClient->getService(SERVICE_UUID);
   if (pService == nullptr) {
-    Serial.println("[GATT] Servico GATT FFF0 nao encontrado no cinto. Desconectando...");
+    Serial.println("[GATT] Servico GATT FFF0 nao encontrado. Desconectando...");
     limparClienteBLE();
     return false;
   }
@@ -244,27 +283,25 @@ bool conectarAoCinto() {
   // 1. Envia o CODIGO_AMBIENTE da antena para autenticar junto ao cinto
   NimBLERemoteCharacteristic* pAuthChar = pService->getCharacteristic(CHAR_AUTH_UUID);
   if (pAuthChar == nullptr) {
-    Serial.println("[GATT] Caracteristica de autenticacao FFF1 nao encontrada. Desconectando...");
+    Serial.println("[GATT] Caracteristica FFF1 nao encontrada. Desconectando...");
     limparClienteBLE();
     return false;
   }
 
-  // Escreve o código de ambiente (tenta sem resposta para menor latência, ou com resposta como fallback)
   bool authOk = pAuthChar->writeValue((const uint8_t*)CODIGO_AMBIENTE, strlen(CODIGO_AMBIENTE), false);
   if (!authOk) {
     authOk = pAuthChar->writeValue((const uint8_t*)CODIGO_AMBIENTE, strlen(CODIGO_AMBIENTE), true);
   }
   if (!authOk) {
-    Serial.println("[GATT] Falha ao enviar codigo de ambiente ao cinto. Desconectando...");
+    Serial.println("[GATT] Falha ao enviar codigo de ambiente. Desconectando...");
     limparClienteBLE();
     return false;
   }
-  Serial.printf("[GATT] Codigo de ambiente '%s' enviado ao cinto!\n", CODIGO_AMBIENTE);
 
   // 2. Inscreve-se na característica de dados (Notify)
   NimBLERemoteCharacteristic* pDataChar = pService->getCharacteristic(CHAR_DATA_UUID);
   if (pDataChar == nullptr || !pDataChar->canNotify()) {
-    Serial.println("[GATT] Caracteristica de dados FFF2 invalida. Desconectando...");
+    Serial.println("[GATT] Caracteristica FFF2 invalida. Desconectando...");
     limparClienteBLE();
     return false;
   }
@@ -279,7 +316,7 @@ bool conectarAoCinto() {
   int rssiLido = pClient->getRssi();
   if (rssiLido != 0) rssiAtual = rssiLido;
 
-  Serial.printf("[GATT] CONECTADO E AUTENTICADO! Recebendo pacotes (RSSI=%d dBm)...\n", rssiAtual);
+  Serial.printf("[GATT] CONECTADO E AUTENTICADO! Recebendo fluxo de 100 Hz + RSSI (%d dBm)...\n", rssiAtual);
   return true;
 }
 
@@ -328,8 +365,10 @@ void manterMQTT() {
 void processarFilaMQTT() {
   ItemFila item;
   while (xQueueReceive(filaPacotes, &item, 0) == pdTRUE) {
-    // Monta o pacote repassado adicionando ID_ANTENA e RSSI:
-    // {codigo_ambiente;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+    // Formato com GATT conectado:
+    //   {codigo_ambiente;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+    // Formato sem GATT conectado (apenas RSSI do anúncio):
+    //   {codigo_ambiente;id_antena;rssi;id_cinto;;;;;;;;}
     char pacoteFinal[128];
     snprintf(
         pacoteFinal, sizeof(pacoteFinal),
@@ -358,17 +397,16 @@ void setup() {
   snprintf(topicoDados, sizeof(topicoDados), "%s/%d", MQTT_TOPIC_BASE, ID_ANTENA);
   snprintf(topicoStatus, sizeof(topicoStatus), "%s/%d/status", MQTT_TOPIC_BASE, ID_ANTENA);
 
-  Serial.println("\n==========================================");
-  Serial.println(" ANCHOR (ANTENA) MVP v1 - GATT + MQTT");
-  Serial.println("==========================================");
+  Serial.println("\n==================================================");
+  Serial.println(" ANCHOR (ANTENA) MVP v1 - HIBRIDO (GATT + RSSI)");
+  Serial.println("==================================================");
   Serial.printf("Codigo de Ambiente : %s\n", CODIGO_AMBIENTE);
   Serial.printf("ID da Antena       : %d\n", ID_ANTENA);
   Serial.printf("Topico MQTT        : %s\n\n", topicoDados);
 
   filaPacotes = xQueueCreate(64, sizeof(ItemFila));
 
-  // Inicializa Wi-Fi e aguarda até 4s pela primeira associação para não
-  // disputar o rádio 2.4 GHz exatamente no instante do handshake BLE GATT
+  // Inicializa Wi-Fi
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -392,7 +430,7 @@ void setup() {
   NimBLEDevice::setMTU(128);
 
   pBLEScan = NimBLEDevice::getScan();
-  // true = aceita duplicados para nunca travar a redescoberta caso precise reconectar
+  // true = recebe todos os anúncios continuamente p/ cálculo de RSSI em tempo real
   pBLEScan->setScanCallbacks(&scanCallbacks, true);
   pBLEScan->setActiveScan(true);
   pBLEScan->setInterval(100);
@@ -413,8 +451,10 @@ void loop() {
   manterMQTT();
   mqtt.loop();
 
-  // 2. Se o scanner encontrou o cinto do mesmo ambiente, realiza a conexão GATT
-  if (deveConectar && (agoraMs - tempoUltimaTentativaConnMs >= 500)) {
+  // 2. Se o cinto está disponível para conexão GATT, tenta conectar
+  //    (usa pequeno escalonamento por ID_ANTENA p/ evitar colisão entre antenas)
+  unsigned long intervaloTentativaMs = 600 + ((ID_ANTENA % 5) * 150);
+  if (deveConectar && (agoraMs - tempoUltimaTentativaConnMs >= intervaloTentativaMs)) {
     deveConectar = false;
     tempoUltimaTentativaConnMs = agoraMs;
     if (!conectarAoCinto()) {
@@ -422,44 +462,45 @@ void loop() {
     }
   }
 
-  // 3. Checagem contínua se a conexão GATT caiu ou não
+  // 3. Checagem contínua se a conexão GATT caiu ou se deve manter o scanner de RSSI ativo
   if (agoraMs - tempoUltimaChecagemBleMs >= 250) {
     tempoUltimaChecagemBleMs = agoraMs;
 
     if (conectadoGATT) {
       if (pClient == nullptr || !pClient->isConnected()) {
-        Serial.println("[GATT] Queda de conexao detectada na checagem ativa. Reconectando...");
+        Serial.println("[GATT] Queda de conexao detectada. Retomando Scanner RSSI + Reconexao...");
         limparClienteBLE();
         iniciarScanBLE();
       } else {
-        // Atualiza o RSSI da conexão ativa em relação ao cinto
+        // Atualiza o RSSI da conexão GATT ativa em relação ao cinto
         int novoRssi = pClient->getRssi();
         if (novoRssi != 0) {
           rssiAtual = novoRssi;
         }
       }
     } else if (!deveConectar) {
-      // Se não está conectado nem conectando, garante que o scanner está rodando
+      // Enquanto não conectado via GATT, garante que o scanner está sempre ouvindo os anúncios
       iniciarScanBLE();
     }
   }
 
-  // 4. Repassa todos os pacotes recebidos na fila para o MQTT
+  // 4. Repassa todos os pacotes (sejam GATT completos ou apenas RSSI) para o MQTT
   processarFilaMQTT();
 
   // 5. Resumo periódico no Serial (a cada 5 s)
   if (agoraMs - tempoAnteriorStatusMs >= 5000) {
     tempoAnteriorStatusMs = agoraMs;
-    Serial.printf("[STATUS] GATT: %s (RSSI %d dBm) | RX GATT: %lu | TX MQTT: %lu | Perdidos: %lu | WiFi: %s | MQTT: %s\n",
-                  conectadoGATT ? "CONECTADO" : "BUSCANDO",
+    Serial.printf("[STATUS] Modo: %s (RSSI %d dBm) | RX GATT: %lu | RX Adv(RSSI): %lu | TX MQTT: %lu | WiFi: %s | MQTT: %s\n",
+                  conectadoGATT ? "GATT+SENSORES" : "SCAN_RSSI",
                   rssiAtual,
                   (unsigned long)pacotesRecebidosGATT,
+                  (unsigned long)pacotesRecebidosAdv,
                   (unsigned long)pacotesPublicadosMQTT,
-                  (unsigned long)pacotesPerdidosFila,
                   WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "OFF",
                   mqtt.connected() ? "ON" : "OFF");
 
     pacotesRecebidosGATT  = 0;
+    pacotesRecebidosAdv   = 0;
     pacotesPublicadosMQTT = 0;
     pacotesPerdidosFila   = 0;
   }

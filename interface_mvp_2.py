@@ -57,6 +57,10 @@ def parse_pacote_mvp(payload: str) -> dict | None:
     """
     Decodifica o pacote no formato:
     {codigo_ambiente;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+
+    Modo híbrido: a antena que NÃO está conectada via GATT manda só o RSSI do anúncio,
+    com os campos de sensores vazios -> {codigo_ambiente;id_antena;rssi;id_cinto;;;;;;;;}
+    Nesse caso os sensores ficam None e "somente_rssi" é True.
     """
     texto = payload.strip()
     if not (texto.startswith("{") and texto.endswith("}")):
@@ -70,24 +74,32 @@ def parse_pacote_mvp(payload: str) -> dict | None:
     else:
         return None
 
+    def opc(txt):
+        txt = txt.strip()
+        return int(txt) if txt else None
+
     try:
-        return {
+        sensores = [opc(c) for c in campos[4:12]]
+        d = {
             "codigo_ambiente": campos[0].strip(),
             "id_antena": int(campos[1]),
             "rssi": int(campos[2]),
             "id_cinto": int(campos[3]),
-            "seq": int(seq) if seq is not None else None,
-            "ax": int(campos[4]),
-            "ay": int(campos[5]),
-            "az": int(campos[6]),
-            "gx": int(campos[7]),
-            "gy": int(campos[8]),
-            "gz": int(campos[9]),
-            "eletrodos_conectados": int(campos[10]),
-            "sinal_ad8232": int(campos[11]),
+            "seq": opc(seq) if seq is not None else None,
+            "ax": sensores[0], "ay": sensores[1], "az": sensores[2],
+            "gx": sensores[3], "gy": sensores[4], "gz": sensores[5],
+            "eletrodos_conectados": sensores[6],
+            "sinal_ad8232": sensores[7],
         }
     except ValueError:
         return None
+    # ou vem tudo (GATT) ou nada (só RSSI); pacote pela metade é inválido
+    completo = all(v is not None for v in sensores[:6])
+    vazio = all(v is None for v in sensores)
+    if not (completo or vazio):
+        return None
+    d["somente_rssi"] = vazio
+    return d
 
 
 JANELA_COLUMNS = ["timestamp", "id_cinto", "id_antena", "prob", "queda",
@@ -167,6 +179,20 @@ class MonitorMVP:
         dados = parse_pacote_mvp(payload)
         if dados is None:
             print(f"{ts_curto} | [PACOTE INVÁLIDO] Tópico {msg.topic}: {payload}")
+            return
+        somente_rssi = dados.pop("somente_rssi")
+
+        # Antena sem GATT: só RSSI do anúncio -> alimenta a localização e segue
+        if somente_rssi:
+            if self.detector is not None:
+                self.detector.atualizar_rssi(dados["id_cinto"], dados["id_antena"], dados["rssi"])
+            if self.csv_writer:
+                self.csv_writer.writerow({"timestamp": ts_iso, **dados})
+                self.csv_file.flush()
+            if not self.quiet:
+                print(f"{ts_curto} | Amb:{dados['codigo_ambiente']} | "
+                      f"Ant:{dados['id_antena']} ({dados['rssi']:>4} dBm) | "
+                      f"Cinto:{dados['id_cinto']} | [RSSI do anuncio, sem sensores]")
             return
 
         # Atualiza cálculo de frequência (Hz) a cada 1 segundo

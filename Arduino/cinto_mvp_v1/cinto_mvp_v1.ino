@@ -1,36 +1,23 @@
 /*
  * ============================================================
- * CINTO MVP v1 - ESP32-C3 (BLE GATT SERVER / PERIPHERAL)
+ * CINTO MVP v1 - ESP32-C3 (MODO HÍBRIDO: GATT + BEACON DE RSSI)
  * ============================================================
  *
- * Especificações implementadas:
- * 1. Possui Código de Ambiente (CODIGO_AMBIENTE) e ID próprio (ID_CINTO).
- * 2. Conexão GATT automática ao ligar e monitoramento contínuo de queda
- *    de conexão (reinicia o anúncio imediatamente se cair).
- * 3. Validação mútua de Código de Ambiente:
- *    - A antena envia seu CODIGO_AMBIENTE na característica de
- *      autenticação logo após conectar.
- *    - O cinto SÓ envia os pacotes de sensores se o código de ambiente
- *      da antena for idêntico ao dele.
- * 4. Lê o MPU6050 via I2C padrão (valores BRUTOS / Raw int16 dos 6 eixos).
- * 5. Lê o AD8232:
- *    - Pino 4: sinal analógico (lido SEMPRE, mesmo com eletrodos soltos).
- *    - Pino 2 (LO-) e Pino 3 (LO+): detecção de eletrodos conectados
- *      (1 = sem eletrodo solto; 0 = algum eletrodo solto).
- * 6. Envia via BLE GATT Notify o pacote no formato:
- *    {codigo_ambiente;id_cinto;seq;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
- *    seq = contador 0..65535 de amostras (o PC detecta perdas e repetidas).
- *    MPU6050 em ±8 g / ±2000 °/s, valores crus (int16).
- *
- * ============================================================
- * OBSERVAÇÃO TÉCNICA SOBRE A TAXA DE LEITURA (200 Hz vs OTIMIZAÇÃO):
- * - No hardware local (I2C a 400 kHz + ADC), o ESP32 lê os sensores em ~0,5 ms,
- *   suportando 200 Hz (5 ms) facilmente.
- * - Porém, no elo completo (BLE GATT -> Antena ESP32 com rádio 2.4 GHz
- *   compartilhado entre BLE e Wi-Fi -> TCP/MQTT), o rádio da antena precisa
- *   alternar no tempo entre receber notificações BLE e transmitir pacotes Wi-Fi.
- * - Por isso, FREQ_LEITURA_HZ está configurada em 100 Hz (10 ms) como valor
- *   otimizado para máxima densidade de dados contínua com estabilidade total.
+ * Arquitetura Híbrida implementada:
+ * 1. Anúncio BLE Estático (Advertising):
+ *    - Envia APENAS {codigo_ambiente;id_cinto} no Manufacturer Data.
+ *    - Nunca precisa ser reescrito com dados de sensores (zero sobrecarga).
+ *    - Quando o cinto está SEM conexão GATT: anuncia em modo CONECTÁVEL
+ *      (BLE_GAP_CONN_MODE_UND) para que uma antena disponível conecte.
+ *    - Quando o cinto JÁ ESTÁ conectado via GATT a uma antena: continua
+ *      anunciando em modo NÃO-CONECTÁVEL (BLE_GAP_CONN_MODE_NON) a cada
+ *      100 ms para que TODAS as outras antenas da sala meçam e enviem o RSSI!
+ * 2. Conexão GATT de Alta Velocidade (100 Hz):
+ *    - Exclusiva para enviar o fluxo rápido de sensores para a antena conectada:
+ *      {codigo_ambiente;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+ *    - Só envia se a antena conectada tiver validado o mesmo CODIGO_AMBIENTE.
+ *    - Se a conexão GATT cair, volta imediatamente o anúncio para modo
+ *      CONECTÁVEL para reconectar automaticamente a uma antena disponível.
  * ============================================================
  */
 
@@ -44,12 +31,9 @@
 #define CODIGO_AMBIENTE "OQPNB"
 #define ID_CINTO        1
 
-uint16_t seqAmostra = 0;   // contador de amostras: o PC detecta perdas e descarta repetidas
-
 // ============================================================
-// CONFIGURAÇÃO DE TAXA DE AMOSTRAGEM (Hz)
+// CONFIGURAÇÃO DE TAXA DE AMOSTRAGEM GATT (Hz)
 // ============================================================
-// Ideal teórico: 200 Hz | Otimizado p/ BLE GATT + Wi-Fi MQTT contínuo: 100 Hz
 #define FREQ_LEITURA_HZ 100
 const unsigned long INTERVALO_LEITURA_US = 1000000UL / FREQ_LEITURA_HZ;
 
@@ -71,7 +55,7 @@ int16_t rawGX = 0, rawGY = 0, rawGZ = 0;
 bool    mpuOk = false;
 
 // ============================================================
-// CONFIGURAÇÕES DO BLE GATT (UUIDs 16-bit p/ caber com folga nos 31B)
+// CONFIGURAÇÕES DO BLE GATT (UUIDs 16-bit)
 // ============================================================
 #define SERVICE_UUID   "FFF0"
 #define CHAR_AUTH_UUID "FFF1" // Write/Read: Validação do CODIGO_AMBIENTE
@@ -83,9 +67,10 @@ NimBLEServer*         pServer   = nullptr;
 NimBLECharacteristic* pAuthChar = nullptr;
 NimBLECharacteristic* pDataChar = nullptr;
 
-volatile bool     antenaConectada   = false;
-volatile bool     antenaAutorizada  = false;
-volatile uint16_t connHandleAntena  = BLE_HS_CONN_HANDLE_NONE;
+volatile bool     antenaConectada       = false;
+volatile bool     antenaAutorizada      = false;
+volatile bool     atualizarModoAnuncio  = false;
+volatile uint16_t connHandleAntena      = BLE_HS_CONN_HANDLE_NONE;
 volatile unsigned long instanteConexaoMs = 0;
 
 unsigned long tempoAnteriorLeituraUs  = 0;
@@ -96,26 +81,25 @@ uint32_t pacotesEnviados = 0;
 // ============================================================
 // FUNÇÕES DO MPU6050 (Leitura Bruta / Raw dos 6 Eixos)
 // ============================================================
-static void escreverRegMPU(uint8_t reg, uint8_t valor) {
-  Wire.beginTransmission(MPU_ADDRESS);
-  Wire.write(reg);
-  Wire.write(valor);
-  Wire.endTransmission();
-}
-
-// Configuração usada no treino do modelo (modelo_mvp_8g.joblib):
-//   acelerômetro ±8 g      -> 4096 LSB/g
-//   giroscópio   ±2000 °/s -> 16,4 LSB/(°/s)
-// Se mudar qualquer faixa aqui, o modelo precisa ser treinado de novo.
 void iniciarMPU() {
-  escreverRegMPU(0x6B, 0x01); // PWR_MGMT_1: acorda, clock pelo PLL do giro X
-  escreverRegMPU(0x1A, 0x03); // CONFIG: filtro passa-baixa interno ~44 Hz (anti-aliasing p/ 100 Hz)
-  // SMPLRT_DIV fica no padrão (1 kHz): como o loop lê por polling a 100 Hz,
-  // um registrador interno mais rápido evita ler a mesma amostra duas vezes.
-  // ACCEL_CONFIG: 0x00 = ±2g | 0x08 = ±4g | 0x10 = ±8g | 0x18 = ±16g
-  escreverRegMPU(0x1C, 0x10); // ±8 g
-  // GYRO_CONFIG: 0x00 = ±250 | 0x08 = ±500 | 0x10 = ±1000 | 0x18 = ±2000 °/s
-  escreverRegMPU(0x1B, 0x18); // ±2000 °/s
+  Wire.beginTransmission(MPU_ADDRESS);
+  Wire.write(0x6B); // Registrador PWR_MGMT_1
+  Wire.write(0x00); // Acorda o MPU6050
+  Wire.endTransmission();
+
+  // Configura acelerômetro para ±8g:
+  // 0x00 = ±2g | 0x08 = ±4g | 0x10 = ±8g | 0x18 = ±16g
+  Wire.beginTransmission(MPU_ADDRESS);
+  Wire.write(0x1C); // Registrador ACCEL_CONFIG
+  Wire.write(0x10); // Seleciona ±8g
+  Wire.endTransmission();
+
+  // Configura giroscópio para ±2000 °/s:
+  // 0x00 = ±250 | 0x08 = ±500 | 0x10 = ±1000 | 0x18 = ±2000
+  Wire.beginTransmission(MPU_ADDRESS);
+  Wire.write(0x1B); // Registrador GYRO_CONFIG
+  Wire.write(0x18); // Seleciona ±2000 °/s
+  Wire.endTransmission();
 }
 
 void lerMPUBruto() {
@@ -151,26 +135,60 @@ void lerMPUBruto() {
 }
 
 // ============================================================
+// CONTROLE DO ANÚNCIO HÍBRIDO (Conectável vs Beacon de RSSI)
+// ============================================================
+// O pacote de anúncio contém SEMPRE apenas {CODIGO_AMBIENTE;ID_CINTO}.
+// - conectavel = true  -> permite que uma antena disponível conecte via GATT.
+// - conectavel = false -> mantém o anúncio ativo em modo NÃO-CONECTÁVEL
+//                         enquanto o GATT está conectado, para que as demais
+//                         antenas calculem o RSSI sem disputar a conexão GATT.
+void configurarAnuncioHibrido(bool conectavel) {
+  NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+  if (pAdvertising->isAdvertising()) {
+    pAdvertising->stop();
+  }
+
+  if (conectavel) {
+    pAdvertising->setConnectableMode(BLE_GAP_CONN_MODE_UND);
+    pAdvertising->setDiscoverableMode(BLE_GAP_DISC_MODE_GEN);
+    pAdvertising->setMinInterval(32);  // 20 ms (reconexão GATT rápida)
+    pAdvertising->setMaxInterval(64);  // 40 ms
+  } else {
+    pAdvertising->setConnectableMode(BLE_GAP_CONN_MODE_NON);
+    pAdvertising->setDiscoverableMode(BLE_GAP_DISC_MODE_GEN);
+    pAdvertising->setMinInterval(160); // 100 ms (beacon leve p/ RSSI nas outras antenas)
+    pAdvertising->setMaxInterval(160); // 100 ms
+  }
+
+  pAdvertising->refreshAdvertisingData();
+  pAdvertising->start();
+
+  Serial.printf("[ADV] Anuncio estatico {%s;%d} ativo em modo %s.\n",
+                CODIGO_AMBIENTE, ID_CINTO,
+                conectavel ? "CONECTAVEL (buscando antena GATT)" : "BEACON RSSI (GATT ja conectado)");
+}
+
+// ============================================================
 // CALLBACKS DO SERVIDOR GATT (Conexão / Desconexão)
 // ============================================================
 class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* pServerInstance, NimBLEConnInfo& connInfo) override {
-    connHandleAntena  = connInfo.getConnHandle();
-    antenaConectada   = true;
-    antenaAutorizada  = false; // Aguarda a antena provar seu CODIGO_AMBIENTE
-    instanteConexaoMs = millis();
+    connHandleAntena     = connInfo.getConnHandle();
+    antenaConectada      = true;
+    antenaAutorizada     = false; // Aguarda a antena provar seu CODIGO_AMBIENTE
+    instanteConexaoMs    = millis();
+    atualizarModoAnuncio = true;  // Liga o beacon não-conectável p/ as demais antenas
 
     Serial.printf("[BLE] Antena conectada (handle=%u, MAC=%s). Aguardando codigo de ambiente...\n",
                   connHandleAntena, connInfo.getAddress().toString().c_str());
   }
 
   void onDisconnect(NimBLEServer* pServerInstance, NimBLEConnInfo& connInfo, int reason) override {
-    Serial.printf("[BLE] Conexao encerrada (motivo=%d). Reiniciando advertising...\n", reason);
-    antenaConectada  = false;
-    antenaAutorizada = false;
-    connHandleAntena = BLE_HS_CONN_HANDLE_NONE;
-
-    NimBLEDevice::startAdvertising();
+    Serial.printf("[BLE] Conexao GATT caiu (motivo=%d). Voltando anuncio para modo CONECTAVEL...\n", reason);
+    antenaConectada      = false;
+    antenaAutorizada     = false;
+    connHandleAntena     = BLE_HS_CONN_HANDLE_NONE;
+    atualizarModoAnuncio = true;  // Volta a aceitar conexão GATT de qualquer antena disponível
   }
 } serverCallbacks;
 
@@ -204,7 +222,7 @@ class AuthCallbacks : public NimBLECharacteristicCallbacks {
 } authCallbacks;
 
 // ============================================================
-// CONFIGURAÇÃO DO BLE GATT E ADVERTISING (Padrão NimBLE v2.x)
+// CONFIGURAÇÃO DO BLE GATT E ADVERTISING HÍBRIDO
 // ============================================================
 void iniciarBLE() {
   char nomeDispositivo[32];
@@ -216,7 +234,8 @@ void iniciarBLE() {
 
   pServer = NimBLEDevice::createServer();
   pServer->setCallbacks(&serverCallbacks);
-  pServer->advertiseOnDisconnect(true);
+  // Gerenciamos o reinício do anúncio manualmente para alternar entre Conectável e Beacon
+  pServer->advertiseOnDisconnect(false);
 
   NimBLEService* pService = pServer->createService(SERVICE_UUID);
 
@@ -229,7 +248,7 @@ void iniciarBLE() {
   pAuthChar->setValue(CODIGO_AMBIENTE);
   pAuthChar->setCallbacks(&authCallbacks);
 
-  // Característica onde o Cinto notifica os pacotes de sensores
+  // Característica onde o Cinto notifica os pacotes de sensores em alta frequência
   pDataChar = pService->createCharacteristic(
       CHAR_DATA_UUID,
       NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY,
@@ -238,43 +257,49 @@ void iniciarBLE() {
 
   pService->start();
 
-  // Configuração limpa de Advertising + Scan Response
-  NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
-  pAdvertising->setName(nomeDispositivo);
-  pAdvertising->addServiceUUID(pService->getUUID());
+  // Monta o payload estático do anúncio: Company ID (0xFFFF) + "{CODIGO_AMBIENTE;ID_CINTO}"
+  char idPayload[24];
+  snprintf(idPayload, sizeof(idPayload), "{%s;%d}", CODIGO_AMBIENTE, ID_CINTO);
 
   std::string mfgData;
   mfgData += (char)0xFF;
   mfgData += (char)0xFF;
-  mfgData += CODIGO_AMBIENTE;
+  mfgData += idPayload;
+
+  NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+  pAdvertising->setName(nomeDispositivo);
+  pAdvertising->addServiceUUID(pService->getUUID());
   pAdvertising->setManufacturerData(mfgData);
-
   pAdvertising->enableScanResponse(true);
-  pAdvertising->setMinInterval(32); // 20 ms
-  pAdvertising->setMaxInterval(64); // 40 ms
-  pAdvertising->start();
 
-  Serial.printf("[BLE] Servidor GATT iniciado como '%s'. Aguardando antena...\n", nomeDispositivo);
+  // Inicia em modo CONECTÁVEL para buscar uma antena disponível
+  configurarAnuncioHibrido(true);
 }
 
 // ============================================================
-// VERIFICAÇÃO CONTÍNUA DO ESTADO DA CONEXÃO GATT
+// VERIFICAÇÃO CONTÍNUA DO ESTADO DA CONEXÃO E DO ANÚNCIO
 // ============================================================
 void verificarConexaoBLE(unsigned long agoraMs) {
-  // 1. Verifica se o servidor perdeu a conexão
-  if (pServer && pServer->getConnectedCount() == 0) {
-    if (antenaConectada) {
-      antenaConectada  = false;
-      antenaAutorizada = false;
-      connHandleAntena = BLE_HS_CONN_HANDLE_NONE;
-    }
-    if (!NimBLEDevice::getAdvertising()->isAdvertising()) {
-      Serial.println("[BLE] Advertising inativo detectado. Reiniciando advertising...");
-      NimBLEDevice::startAdvertising();
-    }
+  // 1. Atualiza o modo do anúncio sempre que conectar ou desconectar
+  if (atualizarModoAnuncio) {
+    atualizarModoAnuncio = false;
+    configurarAnuncioHibrido(!antenaConectada);
   }
 
-  // 2. Se conectou mas a antena não validou o código de ambiente dentro do timeout, desconecta
+  // 2. Verifica se a conexão GATT caiu sem disparar callback
+  if (pServer && pServer->getConnectedCount() == 0 && antenaConectada) {
+    antenaConectada  = false;
+    antenaAutorizada = false;
+    connHandleAntena = BLE_HS_CONN_HANDLE_NONE;
+    configurarAnuncioHibrido(true);
+  }
+
+  // 3. Garante que o rádio está SEMPRE anunciando (seja em modo conectável ou beacon de RSSI)
+  if (!NimBLEDevice::getAdvertising()->isAdvertising()) {
+    configurarAnuncioHibrido(!antenaConectada);
+  }
+
+  // 4. Se conectou mas a antena não validou o código de ambiente dentro do timeout, desconecta
   if (antenaConectada && !antenaAutorizada &&
       (agoraMs - instanteConexaoMs > TIMEOUT_AUTENTICACAO_MS)) {
     Serial.println("[AUTH] Timeout de autenticacao de ambiente. Desconectando cliente...");
@@ -282,6 +307,7 @@ void verificarConexaoBLE(unsigned long agoraMs) {
       pServer->disconnect(connHandleAntena);
     }
     antenaConectada = false;
+    configurarAnuncioHibrido(true);
   }
 }
 
@@ -292,12 +318,12 @@ void setup() {
   Serial.begin(115200);
   delay(500);
 
-  Serial.println("\n==========================================");
-  Serial.println(" CINTO MVP v1 - BLE GATT + MPU RAW + ECG");
-  Serial.println("==========================================");
+  Serial.println("\n==================================================");
+  Serial.println(" CINTO MVP v1 - HIBRIDO (GATT 100Hz + BEACON RSSI)");
+  Serial.println("==================================================");
   Serial.printf("Codigo de Ambiente : %s\n", CODIGO_AMBIENTE);
   Serial.printf("ID do Cinto        : %d\n", ID_CINTO);
-  Serial.printf("Frequencia Alvo    : %d Hz (%lu us)\n", FREQ_LEITURA_HZ, INTERVALO_LEITURA_US);
+  Serial.printf("Frequencia GATT    : %d Hz (%lu us)\n", FREQ_LEITURA_HZ, INTERVALO_LEITURA_US);
 
   // Inicializa I2C a 400 kHz (Fast Mode) com timeout curto para nunca travar
   Wire.begin();
@@ -311,7 +337,7 @@ void setup() {
   pinMode(PINO_LED, OUTPUT);
   analogReadResolution(12);
 
-  // Inicializa BLE GATT Server
+  // Inicializa BLE GATT Server + Anúncio Híbrido
   iniciarBLE();
 }
 
@@ -322,8 +348,8 @@ void loop() {
   unsigned long agoraUs = micros();
   unsigned long agoraMs = millis();
 
-  // Checagem periódica de saúde da conexão GATT (a cada 200 ms)
-  if (agoraMs - tempoAnteriorCheckBleMs >= 200) {
+  // Checagem periódica de saúde da conexão GATT e do Anúncio (a cada 100 ms)
+  if (agoraMs - tempoAnteriorCheckBleMs >= 100) {
     tempoAnteriorCheckBleMs = agoraMs;
     verificarConexaoBLE(agoraMs);
   }
@@ -347,15 +373,14 @@ void loop() {
     // 3. Lê o sinal analógico no pino 4 SEMPRE (mesmo se eletrodo estiver desconectado)
     uint16_t sinalAnalogico = analogRead(PINO_SINAL_AD8232);
 
-    // 4. Só envia o pacote se a antena estiver conectada E tiver o mesmo código de ambiente
+    // 4. Só envia o fluxo rápido de sensores via GATT se a antena estiver conectada E autorizada
     if (antenaConectada && antenaAutorizada && pDataChar != nullptr) {
       char pacote[96];
       int tam = snprintf(
           pacote, sizeof(pacote),
-          "{%s;%d;%u;%d;%d;%d;%d;%d;%d;%u;%u}",
+          "{%s;%d;%d;%d;%d;%d;%d;%d;%u;%u}",
           CODIGO_AMBIENTE,
           ID_CINTO,
-          (unsigned)seqAmostra++,
           rawAX, rawAY, rawAZ,
           rawGX, rawGY, rawGZ,
           eletrodosConectados,
@@ -373,9 +398,10 @@ void loop() {
   // Resumo de diagnóstico no Serial a cada 2 segundos
   if (agoraMs - tempoAnteriorLogMs >= 2000) {
     tempoAnteriorLogMs = agoraMs;
-    Serial.printf("[STATUS] GATT: %s | Autorizada: %s | TX/2s: %lu (%lu Hz) | MPU: %s\n",
+    Serial.printf("[STATUS] GATT: %s | Autorizada: %s | Adv: %s | TX GATT/2s: %lu (%lu Hz) | MPU: %s\n",
                   antenaConectada ? "CONECTADO" : "AGUARDANDO",
                   antenaAutorizada ? "SIM" : "NAO",
+                  NimBLEDevice::getAdvertising()->isAdvertising() ? "ATIVO" : "PARADO",
                   (unsigned long)pacotesEnviados,
                   (unsigned long)(pacotesEnviados / 2),
                   mpuOk ? "OK" : "ERRO");
