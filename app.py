@@ -291,9 +291,11 @@ def _holder():
 
 
 def conectar(*params):
-    """Mantém uma única conexão MQTT viva; recria só se os parâmetros mudarem."""
+    """Mantém uma única conexão MQTT viva; recria se os parâmetros ou o código mudarem."""
     h = _holder()
-    if h.get("params") != params:
+    # após um hot reload a classe é outro objeto: a instância antiga roda código velho
+    desatualizada = "cx" in h and type(h["cx"]) is not Conexao
+    if h.get("params") != params or desatualizada:
         if "cx" in h:
             h["cx"].fechar()
         with st.spinner("Conectando ao broker..."):
@@ -539,7 +541,8 @@ with detalhes_tab:
     st.subheader("Gráficos de sinais")
     if s["sinal"]:
         def _serie(idx):
-            return pd.DataFrame({nome_cinto(c): pd.Series([p[idx] for p in pts], index=[p[0] for p in pts])
+            return pd.DataFrame({nome_cinto(c): pd.Series([p[idx] if len(p) > idx else None for p in pts],
+                                                          index=[p[0] for p in pts])
                                  for c, pts in s["sinal"].items()})
         g1, g2 = st.columns(2)
         with g1:
