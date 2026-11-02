@@ -249,6 +249,16 @@ class MonitorMVP:
             print(f" Antena com melhor sinal: {j['anchor']}  |  pico {f['amax']:.2f} g, "
                   f"inclinação {f['tilt']:.0f} graus")
             print("!" * 70 + "\n")
+            try:
+                import alerta_telegram as tg
+            except ImportError:
+                tg = None
+            if tg and tg.configurado():
+                rssi = self.detector.rssi[j["belt"]].get(j["anchor"]) if self.detector else None
+                texto = tg.mensagem_queda(f"OQPNB{int(j['belt']):02d}", agora, j["anchor"], rssi,
+                                          j["prob"], f["amax"], f["tilt"])
+                tg.enviar(texto, callback=lambda ok, erro: print(
+                    f"[TELEGRAM] {'alerta enviado' if ok else 'FALHOU: ' + str(erro)}"))
         elif self.quiet:
             print(f"{agora:%H:%M:%S.%f}"[:-3] + f" | janela cinto {j['belt']} | prob queda {j['prob']:.2f} | "
                   f"amax {f['amax']:.2f} g | tilt {f['tilt']:5.1f}")

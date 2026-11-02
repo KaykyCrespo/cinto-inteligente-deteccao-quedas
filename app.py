@@ -37,6 +37,7 @@ import paho.mqtt.client as mqtt
 import streamlit as st
 
 from interface_mvp_2 import TOPIC_BASE, parse_pacote_mvp
+import alerta_telegram as tg
 
 BROKER = os.environ.get("OQPNB_BROKER", "localhost")
 PORT = int(os.environ.get("OQPNB_PORT", "1883"))
@@ -96,6 +97,10 @@ class Conexao:
         self.janelas = deque(maxlen=JANELAS_MAX)
         self.grav = None            # {"amostras": (arquivo, writer, caminho), "n": int, "parte": int, ...}
         self.ultima_gravacao = None # caminhos da última gravação encerrada
+
+        # alerta Telegram (ligado/desligado pela barra lateral)
+        self.telegram_ativo = tg.configurado()
+        self.tg_status = None       # {"hora", "ok", "erro", "tipo"} do último envio
 
         # id único: dois clientes com o mesmo id se derrubam mutuamente no broker
         cid = f"app_{uuid.uuid4().hex[:8]}"
@@ -251,6 +256,20 @@ class Conexao:
                     "tilt (graus)": j["features"]["tilt"],
                 })
                 self._evento(f"QUEDA cinto {cinto} prob {j['prob']:.2f} perto da antena {j['anchor']}")
+                enviar_tg = self.telegram_ativo and tg.configurado()
+                rssi_anchor = self.detector.rssi[cinto].get(j["anchor"])
+        if j["queda"] and enviar_tg:
+            texto = tg.mensagem_queda(nome_cinto(cinto), agora, j["anchor"], rssi_anchor,
+                                      j["prob"], j["features"]["amax"], j["features"]["tilt"])
+            tg.enviar(texto, callback=lambda ok, erro: self._tg_resultado(ok, erro, "queda"))
+
+    def _tg_resultado(self, ok, erro, tipo):
+        with self.lock:
+            self.tg_status = {"hora": datetime.now(), "ok": ok, "erro": erro, "tipo": tipo}
+            self._evento(f"Telegram ({tipo}): {'enviado' if ok else 'FALHOU - ' + str(erro)}")
+
+    def testar_telegram(self):
+        tg.enviar(tg.mensagem_teste(), callback=lambda ok, erro: self._tg_resultado(ok, erro, "teste"))
 
     def _evento(self, texto):
         self.eventos.appendleft(f"{datetime.now():%H:%M:%S}  {texto}")
@@ -282,6 +301,7 @@ class Conexao:
                 "quedas": list(self.quedas), "eventos": list(self.eventos),
                 "anchors": dict(self.anchors_status), "total": self.total, "invalidos": self.invalidos,
                 "conectado": self.conectado, "erro": self.erro, "faixa": self.faixa,
+                "tg_status": dict(self.tg_status) if self.tg_status else None,
                 "perdas": {c: det.taxa_perda(c) for c in det.amostras} if det else {},
                 "resets": dict(det.resets) if det else {},
                 "n_janelas": len(self.janelas),
@@ -357,6 +377,13 @@ with st.sidebar:
     st.header("Gravação")
     gravacao_box = st.container()     # preenchido depois que a conexão existir
     st.divider()
+    st.header("Alerta Telegram")
+    tg_ok = tg.configurado()
+    telegram_ativo = st.toggle("Enviar alerta de queda", value=tg_ok, disabled=not tg_ok)
+    telegram_box = st.container()
+    if not tg_ok:
+        st.caption("Defina OQPNB_TG_TOKEN e OQPNB_TG_CHAT antes de abrir o app.")
+    st.divider()
     st.header("Tela")
     auto = st.toggle("Atualizar automaticamente", value=True)
     intervalo = st.slider("Intervalo (s)", 0.5, 5.0, 1.0, 0.5)
@@ -370,6 +397,11 @@ with st.sidebar:
         st.rerun()
 
 cx = conectar(*params)
+cx.telegram_ativo = telegram_ativo
+
+with telegram_box:
+    st.button("Testar envio", width="stretch", disabled=not tg_ok,
+              key="btn_tg_teste", on_click=cx.testar_telegram)
 
 with gravacao_box:
     g = cx.status_gravacao()
@@ -506,7 +538,7 @@ with monitor_tab:
         st.caption("Nenhuma queda detectada.")
 
 with detalhes_tab:
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
     col2.metric("Pacotes inválidos", s["invalidos"])
     if cx.detector is not None:
@@ -515,6 +547,16 @@ with detalhes_tab:
     else:
         col3.metric("Modelo", "desligado")
         col3.caption(os.path.basename(MODELO) if os.path.exists(MODELO) else f"{MODELO} não encontrado")
+    if not tg.configurado():
+        col4.metric("Telegram", "não configurado")
+    elif not telegram_ativo:
+        col4.metric("Telegram", "desligado")
+    else:
+        col4.metric("Telegram", "ativo")
+    if s["tg_status"]:
+        t_ = s["tg_status"]
+        col4.caption(f"último envio ({t_['tipo']}) {t_['hora']:%H:%M:%S}: "
+                     + ("OK" if t_["ok"] else f"falhou — {t_['erro']}"))
 
     if s["erro"]:
         st.error(f"Erro MQTT: {s['erro']}")
