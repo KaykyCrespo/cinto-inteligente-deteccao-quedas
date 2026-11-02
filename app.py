@@ -21,6 +21,7 @@ Gravação e download de CSV (barra lateral):
 """
 
 import csv
+import hashlib
 import io
 import os
 import threading
@@ -290,17 +291,21 @@ def _holder():
     return {}
 
 
+# muda só quando o arquivo é salvo (hot reload), não a cada rerun
+with open(__file__, "rb") as _f:
+    _VERSAO_CONEXAO = hashlib.md5(_f.read()).hexdigest()
+
+
 def conectar(*params):
     """Mantém uma única conexão MQTT viva; recria se os parâmetros ou o código mudarem."""
     h = _holder()
-    # após um hot reload a classe é outro objeto: a instância antiga roda código velho
-    desatualizada = "cx" in h and type(h["cx"]) is not Conexao
-    if h.get("params") != params or desatualizada:
+    if h.get("params") != params or h.get("versao") != _VERSAO_CONEXAO:
         if "cx" in h:
             h["cx"].fechar()
         with st.spinner("Conectando ao broker..."):
             h["cx"] = Conexao(*params)
         h["params"] = params
+        h["versao"] = _VERSAO_CONEXAO
     return h["cx"]
 
 
