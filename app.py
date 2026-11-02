@@ -29,6 +29,7 @@ import uuid
 from collections import deque
 from datetime import datetime
 
+import altair as alt
 import pandas as pd
 import paho.mqtt.client as mqtt
 import streamlit as st
@@ -297,6 +298,13 @@ def conectar(*params):
     return h["cx"]
 
 
+def nome_cinto(cinto):
+    try:
+        return f"OQPNB{int(cinto):02d}"
+    except (TypeError, ValueError):
+        return str(cinto)
+
+
 # ================= Interface =================
 st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
 
@@ -315,13 +323,12 @@ with st.sidebar:
     intervalo = st.slider("Intervalo (s)", 0.5, 5.0, 1.0, 0.5)
     st.divider()
     params = (BROKER, PORT, detectar, limiar or None)
-    if st.button("Reconectar", use_container_width=True):
+    if st.button("Reconectar", width="stretch"):
         h = _holder()
         if "cx" in h:
             h["cx"].fechar()
         h.clear()
         st.rerun()
-    st.caption(f"Broker: {BROKER}:{PORT}")
 
 cx = conectar(*params)
 cx.anotacao = anotacao.strip()
@@ -330,135 +337,223 @@ with st.sidebar:
     g = cx.status_gravacao()
     if g["ativa"]:
         st.success(f"Gravando: {g['n']} amostras ({g['seg']:.0f} s)")
-        if st.button("Parar gravação", use_container_width=True, type="primary"):
+        if st.button("Parar gravação", width="stretch", type="primary"):
             cx.parar_gravacao()
             st.rerun()
     else:
-        if st.button("Gravar amostras", use_container_width=True):
+        if st.button("Gravar amostras", width="stretch"):
             cx.iniciar_gravacao()
             st.rerun()
 
 s = cx.snapshot()
 
-st.title("Monitor de cintos OQPNB")
-if s["faixa"]:
-    st.caption(f"Cinto detectado: {s['faixa']}")
+monitor_tab, detalhes_tab = st.tabs(["Monitoramento", "Detalhes técnicos"])
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
-c2.metric("Amostras recebidas", s["total"])
-c3.metric("Cintos ativos", len(s["melhores"]))
-c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
-if s["erro"]:
-    st.error(f"Erro MQTT: {s['erro']}")
-if s["invalidos"]:
-    st.warning(f"{s['invalidos']} pacotes com formato inválido (veja os eventos abaixo).")
+with monitor_tab:
+    if s["faixa"]:
+        st.caption(f"Cinto detectado: {s['faixa']}")
 
-# -------- alertas de queda --------
-if s["quedas"]:
-    q = s["quedas"][0]
-    st.error(f"**QUEDA DETECTADA** — cinto {q['cinto']} às {q['hora']} "
-             f"(prob {q['prob']:.2f}) perto da antena {q['antena']}", icon="🚨")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
+    c2.metric("Amostras recebidas", s["total"])
+    c3.metric("Cintos ativos", len(s["melhores"]))
+    c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
+    if s["erro"]:
+        st.error(f"Erro MQTT: {s['erro']}")
+    if s["invalidos"]:
+        st.warning(f"{s['invalidos']} pacotes com formato inválido (veja os eventos abaixo).")
 
-# -------- cartões por cinto --------
-st.subheader("Cintos")
-if not s["melhores"]:
-    if s["anchors"] and not s["total"]:
-        st.info("Antena online, mas nenhum pacote de cinto chegou ainda. "
-                "Verifique no Serial da antena se ela mostra 'GATT: CONECTADO' e 'TX MQTT' > 0.")
-    else:
-        st.info("Nenhuma leitura recente. Aguardando dados das antenas...")
-else:
-    cols = st.columns(min(len(s["melhores"]), 4))
-    for i, (cinto, m) in enumerate(sorted(s["melhores"].items())):
-        last = m["last"] or {}
-        prob = s["hist"].get(cinto, [(None, None)])[-1][1]
-        with cols[i % len(cols)]:
-            with st.container(border=True):
-                st.markdown(f"### Cinto {cinto}")
-                a, b = st.columns(2)
-                a.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
-                b.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
-                if prob is not None:
-                    st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.2f}")
-                if last.get("eletrodos_conectados") == 0:
-                    st.warning("Eletrodos soltos")
-                else:
-                    st.caption(f"ECG (AD8232): {last.get('sinal_ad8232')}")
-                if s["perdas"].get(cinto, 0) > 0.05:
-                    st.warning(f"{100 * s['perdas'][cinto]:.0f}% das amostras perdidas")
-                if s["resets"].get(cinto):
-                    st.caption(f"janela reiniciada {s['resets'][cinto]}x por buraco nos dados")
-                st.caption(f"última leitura há {m['idade']:.1f} s")
-
-# -------- gráficos --------
-if s["sinal"]:
-    g1, g2 = st.columns(2)
-    with g1:
-        st.subheader("|a| (g) — últimos 5 s")
-        df = pd.DataFrame({f"cinto {c}": pd.Series([a for _, a, _ in p], index=[t for t, _, _ in p])
-                           for c, p in s["sinal"].items()})
-        st.line_chart(df, height=220)
-    with g2:
-        st.subheader("ECG bruto (AD8232)")
-        df = pd.DataFrame({f"cinto {c}": pd.Series([e for _, _, e in p], index=[t for t, _, _ in p])
-                           for c, p in s["sinal"].items()})
-        st.line_chart(df, height=220)
-
-if s["hist"]:
-    st.subheader("Probabilidade de queda")
-    df = pd.DataFrame({f"cinto {c}": pd.Series([p for _, p in h], index=[t for t, _ in h])
-                       for c, h in s["hist"].items()})
-    st.line_chart(df, height=220)
-
-# -------- tabelas --------
-t1, t2 = st.columns([3, 2])
-with t1:
-    st.subheader("RSSI por cinto × antena")
-    if s["tabela"]:
-        st.dataframe(pd.DataFrame(s["tabela"]), use_container_width=True, hide_index=True)
-    else:
-        st.caption("Sem dados.")
-with t2:
-    st.subheader("Quedas")
+    # -------- alertas de queda --------
     if s["quedas"]:
-        st.dataframe(pd.DataFrame(s["quedas"]), use_container_width=True, hide_index=True)
+        q = s["quedas"][0]
+        st.error(f"**QUEDA DETECTADA** — cinto {nome_cinto(q['cinto'])} às {q['hora']} "
+                 f"(prob {q['prob']:.2f}) perto da antena {q['antena']}", icon="🚨")
+
+    # -------- cartões por cinto --------
+    if not s["melhores"]:
+        if s["anchors"] and not s["total"]:
+            st.info("Antena online, mas nenhum pacote de cinto chegou ainda. "
+                    "Verifique no Serial da antena se ela mostra 'GATT: CONECTADO' e 'TX MQTT' > 0.")
+        else:
+            st.info("Nenhuma leitura recente. Aguardando dados das antenas...")
+    else:
+        cols = st.columns(min(len(s["melhores"]), 4))
+        for i, (cinto, m) in enumerate(sorted(s["melhores"].items())):
+            last = m["last"] or {}
+            prob = s["hist"].get(cinto, [(None, None)])[-1][1]
+            with cols[i % len(cols)]:
+                with st.container(border=True):
+                    nome_exibicao = nome_cinto(cinto)
+                    st.markdown(f"### CINTO {nome_exibicao}")
+                    a, b = st.columns(2)
+                    a.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
+                    b.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
+                    if prob is not None:
+                        st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.2f}")
+                    if last.get("eletrodos_conectados") == 0:
+                        st.warning("Eletrodos soltos")
+                    else:
+                        st.caption(f"ECG (AD8232): {last.get('sinal_ad8232')}")
+                    if s["perdas"].get(cinto, 0) > 0.05:
+                        st.warning(f"{100 * s['perdas'][cinto]:.0f}% das amostras perdidas")
+                    if s["resets"].get(cinto):
+                        st.caption(f"Janela reiniciada {s['resets'][cinto]}x por buraco nos dados | Última leitura há {m['idade']:.1f}s")
+                    else:
+                        st.caption(f"Última leitura há {m['idade']:.1f}s")
+
+    st.subheader("Probabilidade de queda")
+    if s["hist"]:
+        linhas = []
+        for c, h in s["hist"].items():
+            ultimos = list(h)[-10:]
+            for t, p in ultimos:
+                dt = pd.to_datetime(t)
+                linhas.append({
+                    "horario": dt,
+                    "cinto": nome_cinto(c),
+                    "probabilidade": float(p),
+                    "horario_label": dt.strftime("%H:%M:%S"),
+                    "data_label": dt.strftime("%d %b %Y").upper(),
+                })
+
+        if linhas:
+            df = pd.DataFrame(linhas)
+            chart = alt.Chart(df).mark_line().encode(
+                x=alt.X("horario:T", title="Horário", axis=alt.Axis(format='%H:%M:%S')),
+                y=alt.Y("probabilidade:Q", title="Probabilidade"),
+                color=alt.Color("cinto:N", title="Cinto"),
+                tooltip=[
+                    alt.Tooltip("horario_label:N", title="Horário"),
+                    alt.Tooltip("data_label:N", title="Data"),
+                    alt.Tooltip("cinto:N", title="Cinto"),
+                    alt.Tooltip("probabilidade:Q", title="Probabilidade", format=".2f"),
+                ],
+            )
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.caption("Nenhuma probabilidade de queda registrada.")
+
+    # -------- quedas detectadas --------
+    st.subheader("Quedas detectadas")
+    if s["quedas"]:
+        st.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
     else:
         st.caption("Nenhuma queda detectada.")
 
-with st.expander("Status das antenas e eventos"):
+with detalhes_tab:
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
+    col2.metric("Pacotes inválidos", s["invalidos"])
+
+    if s["erro"]:
+        st.error(f"Erro MQTT: {s['erro']}")
+
+    st.subheader("Status das antenas")
     if s["anchors"]:
-        st.write({k: v for k, v in sorted(s["anchors"].items())})
+        antenas = sorted(s["anchors"].items())
+        cols = st.columns(min(4, max(1, len(antenas))))
+        for i, (antena, status) in enumerate(antenas):
+            online = status == "online"
+            with cols[i % len(cols)]:
+                with st.container(border=True):
+                    st.markdown(f"### Antena {antena}")
+                    if online:
+                        st.success("ONLINE")
+                    else:
+                        st.error("OFFLINE")
+    else:
+        st.caption("Nenhuma antena reportou status ainda.")
+
+    st.subheader("Status dos cintos")
+    cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
+    if cinto_ids:
+        cols = st.columns(min(4, max(1, len(cinto_ids))))
+        for i, cinto in enumerate(cinto_ids):
+            online = cinto in s["melhores"]
+            with cols[i % len(cols)]:
+                with st.container(border=True):
+                    nome_exibicao = nome_cinto(cinto)
+                    st.markdown(f"### {nome_exibicao}")
+                    if online:
+                        st.success("ONLINE")
+                    else:
+                        st.error("OFFLINE")
+    else:
+        st.caption("Nenhum cinto reportou status ainda.")
+
+    st.subheader("Eventos do sistema")
     st.text("\n".join(s["eventos"]) or "Sem eventos.")
 
-# -------- downloads --------
-st.subheader("Baixar CSV")
-d1, d2, d3 = st.columns(3)
-tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-with d1:
-    st.download_button(f"Janelas analisadas ({s['n_janelas']})", cx.janelas_csv(),
-                       file_name=f"janelas_{tag}.csv", mime="text/csv",
-                       disabled=not s["n_janelas"], use_container_width=True)
-with d2:
-    cols_q = ["data", "hora", "cinto", "antena", "prob", "amax (g)", "tilt (graus)", "anotacao"]
-    st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
-                       file_name=f"quedas_{tag}.csv", mime="text/csv",
-                       disabled=not s["quedas"], use_container_width=True)
-with d3:
-    g = cx.status_gravacao()
-    if g["ativa"]:
-        st.button("Amostras: pare a gravação para baixar", disabled=True, use_container_width=True)
-    elif g["ultima"] and os.path.exists(g["ultima"]["amostras"]):
-        caminho = g["ultima"]["amostras"]
-        st_ = os.stat(caminho)
-        st.download_button(f"Amostras da última gravação ({g['ultima']['n']})",
-                           _ler_arquivo(caminho, st_.st_mtime, st_.st_size),
-                           file_name=os.path.basename(caminho), mime="text/csv",
-                           use_container_width=True)
+    st.subheader("Dados de rede e métricas internas")
+    tech = {
+        "total_amostras": s["total"],
+        "cintos_ativos": len(s["melhores"]),
+        "probabilidade_queda_por_cinto": {k: round(v[-1][1], 4) if v else None for k, v in s["hist"].items()},
+        "taxa_por_cinto_hz": {k: round(v, 2) for k, v in s["taxa"].items()},
+        "perdas_por_cinto": {k: round(v, 4) for k, v in s["perdas"].items()},
+        "resets_por_cinto": {k: v for k, v in s["resets"].items()},
+    }
+    st.json(tech)
+
+    st.subheader("Gráficos de sinais")
+    if s["sinal"]:
+        g1, g2 = st.columns(2)
+        with g1:
+            st.caption("|a| (g) — últimos 5 s")
+            df = pd.DataFrame({nome_cinto(c): pd.Series([a for _, a, _ in p], index=[t for t, _, _ in p])
+                               for c, p in s["sinal"].items()})
+            st.line_chart(df, height=220)
+        with g2:
+            st.caption("ECG bruto (AD8232)")
+            df = pd.DataFrame({nome_cinto(c): pd.Series([e for _, _, e in p], index=[t for t, _, _ in p])
+                               for c, p in s["sinal"].items()})
+            st.line_chart(df, height=220)
     else:
-        st.button("Amostras: use 'Gravar amostras' na barra lateral", disabled=True,
-                  use_container_width=True)
-st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}")
+        st.caption("Sem dados de sinal para plotar.")
+
+    with st.expander("Tabela RSSI por cinto × antena"):
+        if s["tabela"]:
+            st.dataframe(pd.DataFrame(s["tabela"]), width="stretch", hide_index=True)
+        else:
+            st.caption("Sem tabela RSSI disponível.")
+
+    with st.expander("Histórico de quedas"):
+        if s["quedas"]:
+            st.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
+        else:
+            st.caption("Nenhuma queda registrada.")
+
+    st.subheader("Exportação de dados")
+    d1, d2, d3 = st.columns(3)
+    tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+    with d1:
+        st.download_button(f"Janelas analisadas ({s['n_janelas']})", cx.janelas_csv(),
+                           file_name=f"janelas_{tag}.csv", mime="text/csv",
+                           disabled=not s["n_janelas"], width="stretch")
+    with d2:
+        cols_q = ["data", "hora", "cinto", "antena", "prob", "amax (g)", "tilt (graus)", "anotacao"]
+        st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
+                           file_name=f"quedas_{tag}.csv", mime="text/csv",
+                           disabled=not s["quedas"], width="stretch")
+    with d3:
+        g = cx.status_gravacao()
+        if g["ativa"]:
+            st.button("Amostras: pare a gravação para baixar", disabled=True, width="stretch")
+        elif g["ultima"] and os.path.exists(g["ultima"]["amostras"]):
+            caminho = g["ultima"]["amostras"]
+            st_ = os.stat(caminho)
+            st.download_button(f"Amostras da última gravação ({g['ultima']['n']})",
+                               _ler_arquivo(caminho, st_.st_mtime, st_.st_size),
+                               file_name=os.path.basename(caminho), mime="text/csv",
+                               width="stretch")
+        else:
+            st.button("Amostras: use 'Gravar amostras' na barra lateral", disabled=True,
+                      width="stretch")
+    st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}")
+
+    with st.expander("Gravação local"):
+        g = cx.status_gravacao()
+        st.write(g)
 
 if auto:
     time.sleep(intervalo)
