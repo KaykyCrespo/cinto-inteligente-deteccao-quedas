@@ -38,6 +38,7 @@ import streamlit as st
 
 from interface_mvp_2 import TOPIC_BASE, parse_pacote_mvp
 import alerta_telegram as tg
+import localizacao as loc
 
 BROKER = os.environ.get("OQPNB_BROKER", "localhost")
 PORT = int(os.environ.get("OQPNB_PORT", "1883"))
@@ -101,6 +102,9 @@ class Conexao:
         # alerta Telegram (ligado/desligado pela barra lateral)
         self.telegram_ativo = tg.configurado()
         self.tg_status = None       # {"hora", "ok", "erro", "tipo"} do último envio
+
+        # localização por RSSI (quadrante)
+        self.loc = loc.Localizador()
 
         # id único: dois clientes com o mesmo id se derrubam mutuamente no broker
         cid = f"app_{uuid.uuid4().hex[:8]}"
@@ -217,6 +221,7 @@ class Conexao:
             e["rssi"] = (e["rssi"] + [d["rssi"]])[-RSSI_WINDOW:]
             e["t"] = t
             e["gatt"] = not somente_rssi
+        self.loc.atualizar(cinto, antena, d["rssi"], t, gatt=not somente_rssi)
 
         # antena sem GATT: só RSSI do anúncio -> entra na localização, não nos sinais
         if somente_rssi:
@@ -258,9 +263,14 @@ class Conexao:
                 self._evento(f"QUEDA cinto {cinto} prob {j['prob']:.2f} perto da antena {j['anchor']}")
                 enviar_tg = self.telegram_ativo and tg.configurado()
                 rssi_anchor = self.detector.rssi[cinto].get(j["anchor"])
+        if j["queda"]:
+            pos = self.loc.estimar(cinto, t)
+            with self.lock:
+                self.quedas[0]["quadrante"] = pos["nome"] if pos else "—"
         if j["queda"] and enviar_tg:
             texto = tg.mensagem_queda(nome_cinto(cinto), agora, j["anchor"], rssi_anchor,
-                                      j["prob"], j["features"]["amax"], j["features"]["tilt"])
+                                      j["prob"], j["features"]["amax"], j["features"]["tilt"],
+                                      quadrante=pos["nome"] if pos else None)
             tg.enviar(texto, callback=lambda ok, erro: self._tg_resultado(ok, erro, "queda"))
 
     def _tg_resultado(self, ok, erro, tipo):
@@ -293,8 +303,9 @@ class Conexao:
                     melhores[cinto] = {"antena": antena, "rssi": media, "last": self.ultima.get(cinto),
                                        "idade": idade, "gatt": e["gatt"]}
             det = self.detector
+            posicoes = {c: self.loc.estimar(c, agora) for c in {c for c, _ in self.estado}}
             return {
-                "tabela": linhas, "melhores": melhores,
+                "tabela": linhas, "melhores": melhores, "posicoes": posicoes,
                 "sinal": {c: list(s) for c, s in self.sinal.items()},
                 "hist": {c: list(h) for c, h in self.hist_prob.items()},
                 "taxa": {c: tx["hz"] for c, tx in self.taxa.items()},
@@ -435,8 +446,9 @@ with monitor_tab:
     # -------- alertas de queda --------
     if s["quedas"]:
         q = s["quedas"][0]
+        onde = f" — quadrante {q['quadrante']}" if q.get("quadrante") else ""
         st.error(f"**QUEDA DETECTADA** — cinto {nome_cinto(q['cinto'])} às {q['hora']} "
-                 f"(prob {q['prob']:.2f}) perto da antena {q['antena']}", icon="🚨")
+                 f"(prob {q['prob']:.2f}) perto da antena {q['antena']}{onde}", icon="🚨")
 
     # -------- cartões por cinto --------
     if not s["melhores"]:
@@ -454,9 +466,12 @@ with monitor_tab:
                 with st.container(border=True):
                     nome_exibicao = nome_cinto(cinto)
                     st.markdown(f"### CINTO {nome_exibicao}")
+                    pos = s["posicoes"].get(cinto)
                     a, b = st.columns(2)
-                    a.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
-                    b.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
+                    a.metric("Quadrante", pos["quadrante"] if pos else "—",
+                             pos["nome"] if pos else "aguardando 2+ anchors", delta_color="off")
+                    b.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
+                    st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz")
                     if prob is not None:
                         st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.2f}")
                     if last.get("eletrodos_conectados") == 0:
@@ -469,6 +484,57 @@ with monitor_tab:
                         st.caption(f"Janela reiniciada {s['resets'][cinto]}x por buraco nos dados | Última leitura há {m['idade']:.1f}s")
                     else:
                         st.caption(f"Última leitura há {m['idade']:.1f}s")
+
+    # -------- mapa de localização --------
+    st.subheader("Localização (quadrante)")
+    L = loc.LADO_M
+    anc_df = pd.DataFrame([{"x": x, "y": y, "rotulo": f"Anchor {i}"} for i, (x, y) in loc.ANCHORS.items()])
+    quad_df = pd.DataFrame([
+        {"x": L / 4, "y": 3 * L / 4, "q": "SE"}, {"x": 3 * L / 4, "y": 3 * L / 4, "q": "SD"},
+        {"x": L / 4, "y": L / 4, "q": "IE"}, {"x": 3 * L / 4, "y": L / 4, "q": "ID"}])
+    pos_rows = []
+    for c, p in s["posicoes"].items():
+        if p:
+            pos_rows.append({"x": p["x"], "y": p["y"], "rotulo": nome_cinto(c), "quadrante": p["nome"],
+                             "anchors": p["n_anchors"], "erro": p["erro_m"]})
+    quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values() if p])
+    esc_x = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
+    esc_y = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
+    quad_df["x1"] = quad_df["x"] - L / 4; quad_df["x2"] = quad_df["x"] + L / 4
+    quad_df["y1"] = quad_df["y"] - L / 4; quad_df["y2"] = quad_df["y"] + L / 4
+    fundo = alt.Chart(quad_df).mark_rect(stroke="#888", strokeWidth=1).encode(
+        x=alt.X("x1:Q", scale=esc_x, title="x (m)"), x2="x2:Q",
+        y=alt.Y("y1:Q", scale=esc_y, title="y (m)"), y2="y2:Q",
+        color=alt.condition("datum.ativo", alt.value("#2e7d32"), alt.value("#2b2b2b")),
+        tooltip=[alt.Tooltip("q:N", title="Quadrante")])
+    rot_q = alt.Chart(quad_df).mark_text(color="#bbb", fontSize=14).encode(x="x:Q", y="y:Q", text="q:N")
+    anc_pts = alt.Chart(anc_df).mark_point(shape="triangle-up", size=250, filled=True, color="#f58518").encode(
+        x="x:Q", y="y:Q", tooltip=["rotulo:N"])
+    anc_txt = alt.Chart(anc_df).mark_text(dy=-16, color="#f58518").encode(x="x:Q", y="y:Q", text="rotulo:N")
+    mapa = fundo + rot_q + anc_pts + anc_txt
+    if pos_rows:
+        pos_df = pd.DataFrame(pos_rows)
+        mapa += alt.Chart(pos_df).mark_point(size=300, filled=True, color="#4c78a8").encode(
+            x="x:Q", y="y:Q",
+            tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
+                     alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
+                     alt.Tooltip("anchors:Q", title="Anchors usadas")])
+        mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
+    m1, m2 = st.columns([2, 1])
+    with m1:
+        st.altair_chart(mapa.properties(height=380, width=380), width="content")
+    with m2:
+        for c, p in sorted(s["posicoes"].items()):
+            if not p:
+                st.info(f"{nome_cinto(c)}: aguardando RSSI de pelo menos 2 anchors")
+                continue
+            with st.container(border=True):
+                st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
+                st.caption("RSSI suavizado: " + ", ".join(f"A{a} {r:.0f} dBm" for a, r in sorted(p["rssi"].items())))
+                st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
+                if p["erro_m"] is not None:
+                    st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
+        st.caption(f"Lado {L:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
 
     st.subheader("Probabilidade de queda")
     N_PROB = 10
@@ -701,7 +767,7 @@ with detalhes_tab:
                            file_name=f"janelas_{tag}.csv", mime="text/csv",
                            disabled=not s["n_janelas"], width="stretch")
     with d2:
-        cols_q = ["data", "hora", "cinto", "antena", "prob", "amax (g)", "tilt (graus)"]
+        cols_q = ["data", "hora", "cinto", "antena", "quadrante", "prob", "amax (g)", "tilt (graus)"]
         st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
                            file_name=f"quedas_{tag}.csv", mime="text/csv",
                            disabled=not s["quedas"], width="stretch")

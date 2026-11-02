@@ -59,10 +59,12 @@ def enviar(texto: str, callback=None):
     threading.Thread(target=_run, daemon=True).start()
 
 
-def mensagem_queda(cinto, quando: datetime, anchor, rssi, prob, amax, tilt) -> str:
+def mensagem_queda(cinto, quando: datetime, anchor, rssi, prob, amax, tilt, quadrante=None) -> str:
     local = f"mais perto da Anchor {anchor}" if anchor is not None else "localização indisponível"
     if rssi is not None:
         local += f" ({rssi:.0f} dBm)"
+    if quadrante:
+        local = f"quadrante {quadrante}, " + local
     return ("🚨 QUEDA DETECTADA\n"
             f"Cinto: {cinto}\n"
             f"Hora: {quando:%d/%m/%Y %H:%M:%S}\n"
