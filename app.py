@@ -416,11 +416,15 @@ with monitor_tab:
     N_PROB = 10
     if s["hist"]:
         linhas = []
+        rotulos = {}        # pos -> hh:mm:ss (do cinto com a janela mais recente)
+        ref = max(s["hist"].items(), key=lambda kv: kv[1][-1][0] if kv[1] else datetime.min)[0]
         for c, h in s["hist"].items():
             ultimos = list(h)[-N_PROB:]
             # posição fixa: 0 = janela mais recente, -1 = anterior, ... (eixo não depende do horário)
             for pos, (t, p) in zip(range(-(len(ultimos) - 1), 1), ultimos):
                 dt = pd.to_datetime(t)
+                if c == ref:
+                    rotulos[pos] = dt.strftime("%H:%M:%S")
                 linhas.append({
                     "pos": pos,
                     "cinto": nome_cinto(c),
@@ -431,13 +435,26 @@ with monitor_tab:
 
         if linhas:
             df = pd.DataFrame(linhas)
+            # expressão Vega: troca o número da posição pelo horário da janela
+            mapa = ", ".join(f"'{pos}': '{rotulos.get(pos, '')}'" for pos in range(-(N_PROB - 1), 1))
+            label_expr = "{" + mapa + "}[toString(datum.value)]"
+            # uma escala de cor única para cintos + limiar, para o limiar aparecer na legenda
+            cintos = sorted(df["cinto"].unique())
+            paleta = ["#4c78a8", "#f58518", "#54a24b", "#72b7b2", "#b279a2", "#eeca3b", "#9d755d", "#bab0ac"]
+            dominio, cores = list(cintos), paleta[:len(cintos)]
+            if cx.detector is not None:
+                rotulo_limiar = f"Limiar de alerta ({cx.detector.limiar:.2f})"
+                dominio.append(rotulo_limiar)
+                cores.append("red")
+            escala_cor = alt.Scale(domain=dominio, range=cores)
             base = alt.Chart(df).encode(
-                x=alt.X("pos:Q", title="Janelas (0 = mais recente)",
+                x=alt.X("pos:Q", title="Horário (janela 0 = mais recente)",
                         scale=alt.Scale(domain=[-(N_PROB - 1), 0], nice=False),
-                        axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), format="d", grid=True)),
+                        axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), labelExpr=label_expr,
+                                      labelAngle=-45, grid=True)),
                 y=alt.Y("probabilidade:Q", title="Probabilidade",
                         scale=alt.Scale(domain=[0, 1], nice=False)),
-                color=alt.Color("cinto:N", title="Cinto"),
+                color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
                 tooltip=[
                     alt.Tooltip("horario_label:N", title="Horário"),
                     alt.Tooltip("data_label:N", title="Data"),
@@ -447,8 +464,10 @@ with monitor_tab:
             )
             chart = base.mark_line() + base.mark_point(filled=True, size=60)
             if cx.detector is not None:
-                limiar_df = pd.DataFrame({"y": [cx.detector.limiar]})
-                chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], color="red").encode(y="y:Q")
+                limiar_df = pd.DataFrame({"y": [cx.detector.limiar], "cinto": [rotulo_limiar]})
+                chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
+                    y="y:Q", color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
+                    tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".2f")])
             st.altair_chart(chart.properties(height=260), width="stretch")
         else:
             st.caption("Nenhuma probabilidade de queda registrada.")
