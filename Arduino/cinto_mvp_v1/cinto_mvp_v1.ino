@@ -18,7 +18,9 @@
  *    - Pino 2 (LO-) e Pino 3 (LO+): detecção de eletrodos conectados
  *      (1 = sem eletrodo solto; 0 = algum eletrodo solto).
  * 6. Envia via BLE GATT Notify o pacote no formato:
- *    {codigo_ambiente;id_cinto;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+ *    {codigo_ambiente;id_cinto;seq;ax;ay;az;gx;gy;gz;eletrodos_conectados;sinal_ad8232}
+ *    seq = contador 0..65535 de amostras (o PC detecta perdas e repetidas).
+ *    MPU6050 em ±8 g / ±2000 °/s, valores crus (int16).
  *
  * ============================================================
  * OBSERVAÇÃO TÉCNICA SOBRE A TAXA DE LEITURA (200 Hz vs OTIMIZAÇÃO):
@@ -41,6 +43,8 @@
 // ============================================================
 #define CODIGO_AMBIENTE "OQPNB"
 #define ID_CINTO        1
+
+uint16_t seqAmostra = 0;   // contador de amostras: o PC detecta perdas e descarta repetidas
 
 // ============================================================
 // CONFIGURAÇÃO DE TAXA DE AMOSTRAGEM (Hz)
@@ -92,11 +96,26 @@ uint32_t pacotesEnviados = 0;
 // ============================================================
 // FUNÇÕES DO MPU6050 (Leitura Bruta / Raw dos 6 Eixos)
 // ============================================================
-void iniciarMPU() {
+static void escreverRegMPU(uint8_t reg, uint8_t valor) {
   Wire.beginTransmission(MPU_ADDRESS);
-  Wire.write(0x6B); // Registrador PWR_MGMT_1
-  Wire.write(0x00); // Acorda o MPU6050
+  Wire.write(reg);
+  Wire.write(valor);
   Wire.endTransmission();
+}
+
+// Configuração usada no treino do modelo (modelo_mvp_8g.joblib):
+//   acelerômetro ±8 g      -> 4096 LSB/g
+//   giroscópio   ±2000 °/s -> 16,4 LSB/(°/s)
+// Se mudar qualquer faixa aqui, o modelo precisa ser treinado de novo.
+void iniciarMPU() {
+  escreverRegMPU(0x6B, 0x01); // PWR_MGMT_1: acorda, clock pelo PLL do giro X
+  escreverRegMPU(0x1A, 0x03); // CONFIG: filtro passa-baixa interno ~44 Hz (anti-aliasing p/ 100 Hz)
+  // SMPLRT_DIV fica no padrão (1 kHz): como o loop lê por polling a 100 Hz,
+  // um registrador interno mais rápido evita ler a mesma amostra duas vezes.
+  // ACCEL_CONFIG: 0x00 = ±2g | 0x08 = ±4g | 0x10 = ±8g | 0x18 = ±16g
+  escreverRegMPU(0x1C, 0x10); // ±8 g
+  // GYRO_CONFIG: 0x00 = ±250 | 0x08 = ±500 | 0x10 = ±1000 | 0x18 = ±2000 °/s
+  escreverRegMPU(0x1B, 0x18); // ±2000 °/s
 }
 
 void lerMPUBruto() {
@@ -333,9 +352,10 @@ void loop() {
       char pacote[96];
       int tam = snprintf(
           pacote, sizeof(pacote),
-          "{%s;%d;%d;%d;%d;%d;%d;%d;%u;%u}",
+          "{%s;%d;%u;%d;%d;%d;%d;%d;%d;%u;%u}",
           CODIGO_AMBIENTE,
           ID_CINTO,
+          (unsigned)seqAmostra++,
           rawAX, rawAY, rawAZ,
           rawGX, rawGY, rawGZ,
           eletrodosConectados,
