@@ -116,7 +116,7 @@ class DetectorQuedaStream:
     A faixa configurada no MPU6050 do cinto PRECISA ser a mesma do modelo.
     """
 
-    def __init__(self, caminho_modelo, limiar=None, silencio_s=10.0, reset_gap_s=0.3):
+    def __init__(self, caminho_modelo, limiar=None, silencio_s=5.0, reset_gap_s=0.3):
         pacote = joblib.load(caminho_modelo)
         self.model = pacote["model"]
         self.fs = pacote.get("fs", 50)
