@@ -927,15 +927,24 @@ def atualizar_painel():
             circ_rows = []
             angulos = [2 * math.pi * k / 72 for k in range(73)]
             for c, por_antena in s.get("raios", {}).items():
+                if not por_antena:
+                    continue
+                mais_forte = max(por_antena, key=lambda a: por_antena[a]["rssi"])
                 for a, info in por_antena.items():
                     ax_, ay_ = loc.ANCHORS[a]
+                    # antena longe/sombreada só exclui região; desenha fraca para não dominar o mapa
+                    tipo = "perto" if a == mais_forte else ("longe" if info["dist"] > L else "media")
                     for k, ang in enumerate(angulos):
                         circ_rows.append({"x": ax_ + info["dist"] * math.cos(ang), "y": ay_ + info["dist"] * math.sin(ang),
-                                          "k": k, "serie": f"{nome_cinto(c)}-A{a}", "antena": f"A{a}",
+                                          "k": k, "serie": f"{nome_cinto(c)}-A{a}", "antena": f"A{a}", "tipo": tipo,
                                           "raio": round(info["dist"], 2), "rssi": info["rssi"]})
             if circ_rows:
-                mapa += alt.Chart(pd.DataFrame(circ_rows)).mark_line(clip=True, strokeDash=[6, 4], opacity=0.7).encode(
+                tipos = ["perto", "media", "longe"]
+                mapa += alt.Chart(pd.DataFrame(circ_rows)).mark_line(clip=True).encode(
                     x="x:Q", y="y:Q", order="k:Q", detail="serie:N", color=alt.value("#f58518"),
+                    opacity=alt.Opacity("tipo:N", scale=alt.Scale(domain=tipos, range=[0.95, 0.6, 0.2]), legend=None),
+                    strokeDash=alt.StrokeDash("tipo:N", scale=alt.Scale(domain=tipos, range=[[1, 0], [6, 4], [2, 4]]), legend=None),
+                    strokeWidth=alt.StrokeWidth("tipo:N", scale=alt.Scale(domain=tipos, range=[2.5, 1.5, 1]), legend=None),
                     tooltip=[alt.Tooltip("antena:N", title="Antena"), alt.Tooltip("raio:Q", title="Raio (m)", format=".1f"),
                              alt.Tooltip("rssi:Q", title="RSSI (dBm)", format=".0f")])
             if pos_rows:
