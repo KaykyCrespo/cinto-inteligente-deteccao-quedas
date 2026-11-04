@@ -92,6 +92,11 @@ class Localizador:
                 out[antena] = float(np.median(vals))
         return out
 
+    def raios(self, cinto, agora):
+        """antena -> {rssi, dist}: raio estimado agora, mesmo com menos de 3 antenas (uso visual)."""
+        return {a: {"rssi": round(r, 1), "dist": float(min(rssi_para_dist(r), LADO_M * 1.5))}
+                for a, r in self.rssi_suavizado(cinto, agora).items()}
+
     def estimar(self, cinto, agora):
         """Retorna uma posição com confiança qualitativa, ou None sem posição válida recente."""
         with self.lock:

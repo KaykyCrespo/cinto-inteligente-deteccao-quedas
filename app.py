@@ -328,9 +328,11 @@ class Conexao:
                     melhores[cinto] = {"antena": antena, "rssi": media, "last": self.ultima.get(cinto),
                                        "idade": idade, "gatt": e["gatt"]}
             det = self.detector
-            posicoes = {c: self.loc.estimar(c, agora) for c in {c for c, _ in self.estado}}
+            cintos_vistos = {c for c, _ in self.estado}
+            posicoes = {c: self.loc.estimar(c, agora) for c in cintos_vistos}
+            raios = {c: self.loc.raios(c, agora) for c in cintos_vistos}
             return {
-                "tabela": linhas, "melhores": melhores, "posicoes": posicoes,
+                "tabela": linhas, "melhores": melhores, "posicoes": posicoes, "raios": raios,
                 "sinal": {c: list(s) for c, s in self.sinal.items()},
                 "hist": {c: list(h) for c, h in self.hist_prob.items()},
                 "taxa": {c: tx["hz"] for c, tx in self.taxa.items()},
@@ -831,7 +833,11 @@ def atualizar_painel():
 
         with st.expander("Histórico de Quedas"):
             if s["quedas"]:
-                df_historico = pd.DataFrame(s["quedas"]).rename(columns=lambda coluna: coluna[:1].upper() + coluna[1:])
+                df_historico = pd.DataFrame(s["quedas"])
+                df_historico["data"] = pd.to_datetime(df_historico["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
+                df_historico["prob"] = df_historico["prob"].map(lambda valor: f"{valor:.1%}")
+                df_historico = df_historico.rename(columns={"amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)"})
+                df_historico = df_historico.rename(columns=lambda coluna: coluna[:1].upper() + coluna[1:])
                 st.dataframe(df_historico, width="stretch", hide_index=True)
             else:
                 st.caption("Nenhuma queda registrada.")
@@ -917,6 +923,21 @@ def atualizar_painel():
                 x="x:Q", y="y:Q", tooltip=["rotulo:N"])
             anc_txt = alt.Chart(anc_df).mark_text(dy=-16, color="#f58518").encode(x="x:Q", y="y:Q", text="rotulo:N")
             mapa = fundo + rot_q + anc_pts + anc_txt
+            # círculos de distância estimada: a interseção indica a região provável do cinto
+            circ_rows = []
+            angulos = [2 * math.pi * k / 72 for k in range(73)]
+            for c, por_antena in s.get("raios", {}).items():
+                for a, info in por_antena.items():
+                    ax_, ay_ = loc.ANCHORS[a]
+                    for k, ang in enumerate(angulos):
+                        circ_rows.append({"x": ax_ + info["dist"] * math.cos(ang), "y": ay_ + info["dist"] * math.sin(ang),
+                                          "k": k, "serie": f"{nome_cinto(c)}-A{a}", "antena": f"A{a}",
+                                          "raio": round(info["dist"], 2), "rssi": info["rssi"]})
+            if circ_rows:
+                mapa += alt.Chart(pd.DataFrame(circ_rows)).mark_line(clip=True, strokeDash=[6, 4], opacity=0.7).encode(
+                    x="x:Q", y="y:Q", order="k:Q", detail="serie:N", color=alt.value("#f58518"),
+                    tooltip=[alt.Tooltip("antena:N", title="Antena"), alt.Tooltip("raio:Q", title="Raio (m)", format=".1f"),
+                             alt.Tooltip("rssi:Q", title="RSSI (dBm)", format=".0f")])
             if pos_rows:
                 pos_df = pd.DataFrame(pos_rows)
                 mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
