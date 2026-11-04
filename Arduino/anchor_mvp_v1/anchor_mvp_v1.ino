@@ -40,7 +40,7 @@
 #define WIFI_SSID       "NOME_DO_SEU_WIFI"
 #define WIFI_PASSWORD   "SENHA_DO_SEU_WIFI"
 
-#define MQTT_BROKER     "192.168.15.82" //.46 enzo .82 kayky
+#define MQTT_BROKER     "192.168.0.177" //.46 enzo .82 kayky
 #define MQTT_PORT       1883
 #define MQTT_USER       ""
 #define MQTT_PASS       ""

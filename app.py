@@ -265,12 +265,15 @@ class Conexao:
                 rssi_anchor = self.detector.rssi[cinto].get(j["anchor"])
         if j["queda"]:
             pos = self.loc.estimar(cinto, t)
+            local_queda = pos["nome"] if pos else None
+            if pos and pos["confianca"] == "baixa":
+                local_queda += " (última posição, baixa confiança)"
             with self.lock:
-                self.quedas[0]["quadrante"] = pos["nome"] if pos else "—"
+                self.quedas[0]["quadrante"] = local_queda or "localização indisponível"
         if j["queda"] and enviar_tg:
             texto = tg.mensagem_queda(nome_cinto(cinto), agora, j["anchor"], rssi_anchor,
                                       j["prob"], j["features"]["amax"], j["features"]["tilt"],
-                                      quadrante=pos["nome"] if pos else None)
+                                      quadrante=local_queda)
             tg.enviar(texto, callback=lambda ok, erro: self._tg_resultado(ok, erro, "queda"))
 
     def _tg_resultado(self, ok, erro, tipo):
@@ -469,8 +472,10 @@ with monitor_tab:
                     pos = s["posicoes"].get(cinto)
                     a, b = st.columns(2)
                     a.metric("Quadrante", pos["quadrante"] if pos else "—",
-                             pos["nome"] if pos else "aguardando 2+ anchors", delta_color="off")
+                             pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
                     b.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
+                    if pos and pos["confianca"] == "baixa":
+                        st.warning(f"Localização incerta · última posição válida há {pos['idade_s']:.1f} s")
                     st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz")
                     if prob is not None:
                         st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.2f}")
@@ -496,8 +501,10 @@ with monitor_tab:
     for c, p in s["posicoes"].items():
         if p:
             pos_rows.append({"x": p["x"], "y": p["y"], "rotulo": nome_cinto(c), "quadrante": p["nome"],
-                             "anchors": p["n_anchors"], "erro": p["erro_m"]})
-    quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values() if p])
+                             "anchors": p["n_anchors"], "erro": p["erro_m"],
+                             "confianca": p["confianca"], "idade": p["idade_s"]})
+    quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
+                                       if p and p["confianca"] == "boa"])
     esc_x = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
     esc_y = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
     quad_df["x1"] = quad_df["x"] - L / 4; quad_df["x2"] = quad_df["x"] + L / 4
@@ -514,10 +521,14 @@ with monitor_tab:
     mapa = fundo + rot_q + anc_pts + anc_txt
     if pos_rows:
         pos_df = pd.DataFrame(pos_rows)
-        mapa += alt.Chart(pos_df).mark_point(size=300, filled=True, color="#4c78a8").encode(
+        mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
             x="x:Q", y="y:Q",
+            color=alt.Color("confianca:N", title="Confiança",
+                            scale=alt.Scale(domain=["boa", "baixa"], range=["#4c78a8", "#e6a23c"])),
             tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
                      alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
+                     alt.Tooltip("confianca:N", title="Confiança"),
+                     alt.Tooltip("idade:Q", title="Idade da posição (s)", format=".1f"),
                      alt.Tooltip("anchors:Q", title="Anchors usadas")])
         mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
     m1, m2 = st.columns([2, 1])
@@ -526,10 +537,15 @@ with monitor_tab:
     with m2:
         for c, p in sorted(s["posicoes"].items()):
             if not p:
-                st.info(f"{nome_cinto(c)}: aguardando RSSI de pelo menos 2 anchors")
+                st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas")
                 continue
             with st.container(border=True):
                 st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
+                if p["confianca"] == "baixa":
+                    st.warning(f"Baixa confiança: {p['motivo']}")
+                    st.caption(f"Última posição válida há {p['idade_s']:.1f} s; valores abaixo são dessa posição.")
+                else:
+                    st.caption("Confiança: boa")
                 st.caption("RSSI suavizado: " + ", ".join(f"A{a} {r:.0f} dBm" for a, r in sorted(p["rssi"].items())))
                 st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
                 if p["erro_m"] is not None:
@@ -646,7 +662,7 @@ with detalhes_tab:
 
     st.subheader("Status do sistema")
     col_cinto, col_antenas = st.columns([1, 2])
-    ALT_CARD = 190                       # mesma altura para o card do cinto e o das antenas
+    ALT_CARD = 220                       # mesma altura para o card do cinto e o das antenas
 
     with col_cinto:
         cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
@@ -677,7 +693,7 @@ with detalhes_tab:
         for linha in s["tabela"]:
             a = str(linha["antena"])
             if linha["RSSI atual"] is not None and (a not in rssi_antena or linha["idade (s)"] < rssi_antena[a][1]):
-                rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"])
+                rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"], linha["origem"])
         with st.container(border=True, height=ALT_CARD):
             cols = st.columns(len(ANTENAS))
             for col, antena in zip(cols, ANTENAS):
@@ -689,9 +705,11 @@ with detalhes_tab:
                 else:
                     badge, cor = "SEM STATUS", "orange"
                 r = rssi_antena.get(str(antena))
+                modo = ("GATT" if r[2] == "GATT" else "Advertising") if r and r[1] <= 10 and status != "offline" else "sem dados recentes"
                 with col:
                     st.markdown(f"**Anchor {antena}**")
                     st.markdown(f":{cor}[● {badge}]")
+                    st.caption(f"Modo: {modo}")
                     st.metric("RSSI", f"{r[0]} dBm" if r else "—",
                               f"há {r[1]:.0f} s" if r else None, delta_color="off",
                               label_visibility="collapsed")

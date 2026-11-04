@@ -42,6 +42,15 @@ python reproduzir_csv.py gravacoes\amostras_AAAAMMDD_HHMMSS.csv --modelo modelo_
 Resultado no SisFall (validação por voluntário, limiar 0,5): 98,8% das quedas detectadas,
 95,3% de especificidade. Detalhes em `resultado_treino_mvp_8g.txt`.
 
+### Estabilidade da localização
+- RSSI suavizado pela mediana dos últimos 4 s e histerese de 0,6 m nas divisas.
+- Uma mudança de quadrante ou salto de RSSI de pelo menos 8 dB exige 3 s de confirmação com novas leituras.
+- Uma posição válida exige as 3 antenas configuradas em `localizacao.py`, leituras com no máximo 2 s e resíduo geométrico de até 25% do lado do ambiente. Distâncias incompatíveis com o ambiente também são rejeitadas.
+- Durante inconsistências, a última posição válida fica marcada com baixa confiança por até 6 s desde sua leitura. Depois, a localização fica indisponível até novas leituras consistentes.
+- O mapa, o histórico de quedas e o Telegram distinguem posição retida de posição atual. A confiança é uma regra qualitativa, não uma probabilidade calibrada.
+- Esses ajustes reduzem oscilações, mas não corrigem bloqueio contínuo pelo corpo. Não alteram a seleção da conexão GATT.
+- Teste sem hardware: `python -m unittest teste_localizacao -v`.
+
 ---
 
 # Caminho anterior: cinto_v5 (features calculadas no cinto, BLE advertising)
