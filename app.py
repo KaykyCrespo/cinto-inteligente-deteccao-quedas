@@ -709,7 +709,9 @@ def atualizar_painel():
                 return fmt(next(iter(d.values())))
             return " | ".join(f"{nome_cinto(k)}: {fmt(v)}" for k, v in sorted(d.items()))
 
-        col1, col2, col_invalidos, col3, col4 = st.columns(5)
+        st.subheader("Status do Sistema")
+        status_sistema = st.container(border=True)
+        col1, col2, col_invalidos, col3, col4 = status_sistema.columns(5)
         col1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
         col1.metric("Quadrante", _por_cinto(
             {cinto: pos["quadrante"] if pos else "—" for cinto, pos in s["posicoes"].items()}, str))
@@ -745,10 +747,9 @@ def atualizar_painel():
                          + ("OK" if t_["ok"] else f"falhou — {t_['erro']}"))
 
         if s["erro"]:
-            st.error(f"Erro MQTT: {s['erro']}")
+            status_sistema.error(f"Erro MQTT: {s['erro']}")
 
-        st.subheader("Status do sistema")
-        col_cinto, col_antenas = st.columns([1, 2])
+        col_cinto, col_antenas = status_sistema.columns([1, 2])
         ALT_CARD = 220                       # mesma altura para o card do cinto e o das antenas
 
         with col_cinto:
@@ -757,11 +758,10 @@ def atualizar_painel():
                 for cinto in cinto_ids:
                     m = s["melhores"].get(cinto)
                     last = (m or {}).get("last") or {}
-                    with st.container(border=True, height=ALT_CARD):
+                    with st.container(border=False, height=ALT_CARD):
                         if m:
                             st.markdown(f"**CINTO {nome_cinto(cinto)}** :green[● ONLINE]")
                             st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
-                            st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz")
                             if last.get("eletrodos_conectados") == 0:
                                 st.markdown(
                                     'Status eletrodo: <span style="color:#e6b422;'
@@ -779,7 +779,7 @@ def atualizar_painel():
                             st.markdown(f"**CINTO {nome_cinto(cinto)}** :red[● OFFLINE]")
                             st.caption("Sem leitura nos últimos 10 s")
             else:
-                with st.container(border=True, height=ALT_CARD):
+                with st.container(border=False, height=ALT_CARD):
                     st.markdown("**CINTO —** :orange[● SEM CINTO]")
                     st.caption("Nenhum cinto detectado")
 
@@ -794,7 +794,7 @@ def atualizar_painel():
                 a = str(linha["antena"])
                 if linha["RSSI atual"] is not None and (a not in rssi_antena or linha["idade (s)"] < rssi_antena[a][1]):
                     rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"], linha["origem"])
-            with st.container(border=True, height=ALT_CARD):
+            with st.container(border=False, height=ALT_CARD):
                 cols = st.columns(len(ANTENAS))
                 for col, antena in zip(cols, ANTENAS):
                     status = status_antenas.get(str(antena))
@@ -816,7 +816,7 @@ def atualizar_painel():
                                   f"há {r[1]:.0f} s" if r else None, delta_color="off",
                                   label_visibility="collapsed")
 
-        st.subheader("Gráficos de sinais")
+        st.markdown('<h3 style="text-align:center">Gráficos de SINAIS</h3>', unsafe_allow_html=True)
         if s["sinal"]:
             JANELA_S = 5
             N_TICKS = 5
@@ -829,7 +829,7 @@ def atualizar_painel():
             mapa_t = ", ".join(f"'{k:g}': '{v}'" for k, v in rotulos_t.items())
             label_expr_t = "{" + mapa_t + "}[toString(datum.value)]"
 
-            def grafico_sinal(idx, titulo_y):
+            def grafico_sinal(idx, titulo_y, titulo, altura=220):
                 linhas = []
                 for c, pts in s["sinal"].items():
                     nome = nome_cinto(c)
@@ -842,25 +842,27 @@ def atualizar_painel():
                         linhas.append({"t": dt_s, "valor": p[idx], "cinto": nome,
                                        "horario": p[0].strftime("%H:%M:%S.%f")[:-3]})
                 df = pd.DataFrame(linhas)
-                return alt.Chart(df).mark_line().encode(
+                chart = alt.Chart(df).mark_line().encode(
                     x=alt.X("t:Q", title="Horário",
                             scale=alt.Scale(domain=[-JANELA_S, 0], nice=False),
                             axis=alt.Axis(values=ticks, labelExpr=label_expr_t,
                                           labelAngle=-45, grid=True)),
                     y=alt.Y("valor:Q", title=titulo_y),
-                    color=alt.Color("cinto:N", title="Legenda"),
+                    color=alt.Color("cinto:N", title=None,
+                                    legend=alt.Legend(title=None, orient="top", direction="horizontal")),
                     tooltip=[alt.Tooltip("horario:N", title="Horário"),
                              alt.Tooltip("cinto:N", title="Cinto"),
                              alt.Tooltip("valor:Q", title=titulo_y, format=".2f")],
-                ).properties(height=220)
+                ).properties(height=altura, title=alt.TitleParams(text=titulo, anchor="middle", offset=12))
+                spec = chart.configure_legend(orient="top", direction="horizontal", offset=8).to_dict()
+                spec["config"]["legend"]["layout"] = {"top": {"anchor": "middle"}}
+                return spec
 
             g1, g2 = st.columns(2)
             with g1:
-                st.caption("Acelerômetro |a| - Últimos 5s")
-                st.altair_chart(grafico_sinal(1, "|a|"), width="stretch")
+                st.vega_lite_chart(grafico_sinal(1, "|a|", "Acelerômetro |a| - Últimos 5s"), width="stretch")
             with g2:
-                st.caption("Giroscópio |ω| (°/s) — Últimos 5s")
-                st.altair_chart(grafico_sinal(2, "|ω| (°/s)"), width="stretch")
+                st.vega_lite_chart(grafico_sinal(2, "|ω| (°/s)", "Giroscópio |ω| (°/s) - Últimos 5s"), width="stretch")
         else:
             st.caption("Sem dados de sinal para plotar.")
 
@@ -924,10 +926,10 @@ def atualizar_painel():
                         st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
             st.caption(f"Lado {L:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
         with col_ecg:
-            st.subheader("ECG bruto (AD8232)")
             if s["sinal"]:
-                st.altair_chart(grafico_sinal(3, "ADC (0–4095)").properties(height=380), width="stretch")
+                st.vega_lite_chart(grafico_sinal(3, "ADC (0–4095)", "ECG bruto (AD8232) - Últimos 5s", altura=380), width="stretch")
             else:
+                st.markdown('<h3 style="text-align:center">ECG bruto (AD8232)</h3>', unsafe_allow_html=True)
                 st.caption("Sem dados de ECG para plotar.")
 
         with st.expander("Tabela RSSI por cinto × antena"):
