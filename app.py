@@ -413,12 +413,16 @@ def nome_cinto(cinto):
 st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
 
 with st.sidebar:
-    with open(os.path.join(os.path.dirname(__file__), "assets", "logo_oqpnb.svg"), encoding="utf-8") as arquivo_logo:
-        st.html(
-            '<div style="display:flex;align-items:center;gap:12px">'
-            f'<div style="flex:0 0 112px">{arquivo_logo.read()}</div>'
-            '<div style="font-size:1rem;font-weight:600;line-height:1.3">'
-            'Protótipo Cinto Inteligente</div></div>')
+    st.html("""<style>
+        [data-testid="stSidebar"] hr {margin: 0.5rem 0 !important;}
+        [data-testid="stSidebar"] h2 {padding-top: 0.25rem;}
+    </style>""")
+    col_logo, col_nome = st.columns([1, 2], gap="small", vertical_alignment="center")
+    with col_logo:
+        st.image(os.path.join(os.path.dirname(__file__), "assets", "logo_oqpnb.svg"), width=72)
+    with col_nome:
+        st.markdown('<div style="font-size:1rem;font-weight:600;white-space:nowrap">Cinto Inteligente</div>',
+                    unsafe_allow_html=True)
     st.header("Alertas de queda")
     tg_ok = tg.configurado()
     h = _holder()

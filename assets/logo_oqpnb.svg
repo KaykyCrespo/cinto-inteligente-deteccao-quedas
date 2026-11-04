@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 704 436" width="112" style="max-width:100%;height:auto;display:block" role="img" aria-labelledby="title">
   <title id="title">OQPNB - Cinto de monitoramento</title>
   <g fill="none" stroke-linecap="round">
-    <path d="M250 163C-49 163-49 364 246 364M454 163C753 163 753 364 458 364" stroke="currentColor" stroke-width="35"/>
+    <path d="M250 163C-49 163-49 364 246 364M454 163C753 163 753 364 458 364" stroke="#4e9be8" stroke-width="35"/>
     <path d="M242 74Q352-26 462 74M298 124Q352 78 406 124" stroke="#4e9be8" stroke-width="28"/>
   </g>
   <circle cx="352" cy="164" r="16" fill="#4e9be8"/>
-  <rect x="246" y="298" width="212" height="128" rx="34" fill="currentColor"/>
+  <rect x="246" y="298" width="212" height="128" rx="34" fill="#4e9be8"/>
   <rect x="308" y="353" width="88" height="18" rx="9" fill="#4e9be8"/>
 </svg>
