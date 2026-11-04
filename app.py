@@ -950,8 +950,13 @@ def atualizar_painel():
                              alt.Tooltip("idade:Q", title="Idade da posição (s)", format=".1f"),
                              alt.Tooltip("anchors:Q", title="Anchors usadas")])
                 mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
-            st.altair_chart(mapa.properties(height=380), width="stretch")
+            st.altair_chart(mapa.properties(height=420, width=420), width="content")
             for c, p in sorted(s["posicoes"].items()):
+                raios_c = s.get("raios", {}).get(c, {})
+                if raios_c:
+                    st.caption("Raios atuais: " + ", ".join(
+                        f"A{a} {r['rssi']:.0f} dBm → {'≥ ' if r['limitado'] else ''}{r['dist']:.1f} m"
+                        for a, r in sorted(raios_c.items())))
                 if not p:
                     st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas")
                     continue
