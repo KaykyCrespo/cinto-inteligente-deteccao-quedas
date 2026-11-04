@@ -78,6 +78,7 @@ class Conexao:
         self.hist_prob = {}         # cinto -> deque[(datetime, prob)]
         self.taxa = {}              # cinto -> {"n": int, "t0": float, "hz": float}
         self.quedas = deque(maxlen=EVENTOS_MAX)
+        self.total_quedas = 0
         self.eventos = deque(maxlen=EVENTOS_MAX)
         self.total = 0
         self.invalidos = 0
@@ -259,6 +260,7 @@ class Conexao:
             self.janelas.append(linha)
             self.hist_prob.setdefault(cinto, deque(maxlen=HIST_MAX)).append((agora, j["prob"]))
             if j["queda"]:
+                self.total_quedas += 1
                 self.quedas.appendleft({
                     "data": agora.strftime("%Y-%m-%d"),
                     "hora": agora.strftime("%H:%M:%S"), "cinto": cinto, "antena": j["anchor"],
@@ -332,7 +334,7 @@ class Conexao:
                 "sinal": {c: list(s) for c, s in self.sinal.items()},
                 "hist": {c: list(h) for c, h in self.hist_prob.items()},
                 "taxa": {c: tx["hz"] for c, tx in self.taxa.items()},
-                "quedas": list(self.quedas), "eventos": list(self.eventos),
+                "quedas": list(self.quedas), "total_quedas": self.total_quedas, "eventos": list(self.eventos),
                 "anchors": dict(self.anchors_status), "total": self.total, "invalidos": self.invalidos,
                 "conectado": self.conectado, "erro": self.erro, "faixa": self.faixa,
                 "tg_status": dict(self.tg_status) if self.tg_status else None,
@@ -524,7 +526,7 @@ with telegram_box:
 def atualizar_painel():
     s = cx.snapshot()
 
-    monitor_tab, detalhes_tab = st.tabs(["Monitoramento", "Detalhes técnicos"])
+    monitor_tab, detalhes_tab = st.tabs(["Monitoramento", "Detalhes"])
 
     with monitor_tab:
         if s["erro"]:
@@ -699,9 +701,20 @@ def atualizar_painel():
             col_quedas.caption("Nenhuma queda detectada.")
 
     with detalhes_tab:
-        col1, col2, col3, col4 = st.columns(4)
+        def _por_cinto(d, fmt):
+            if not d:
+                return "—"
+            if len(d) == 1:
+                return fmt(next(iter(d.values())))
+            return " | ".join(f"{nome_cinto(k)}: {fmt(v)}" for k, v in sorted(d.items()))
+
+        col1, col2, col_invalidos, col3, col4 = st.columns(5)
         col1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
-        col2.metric("Pacotes inválidos", s["invalidos"])
+        col1.metric("Quadrante", _por_cinto(
+            {cinto: pos["quadrante"] if pos else "—" for cinto, pos in s["posicoes"].items()}, str))
+        col2.metric("Amostras recebidas", f"{s['total']:,}".replace(",", "."))
+        col2.metric("Taxa", _por_cinto(s["taxa"], lambda valor: f"{valor:.0f} Hz"))
+        col_invalidos.metric("Pacotes inválidos", s["invalidos"])
         if cx.detector is not None:
             col3.metric("Modelo", os.path.basename(MODELO), f"limiar {cx.detector.limiar:.2f}", delta_color="off")
             col3.caption(s["faixa"])
@@ -722,20 +735,8 @@ def atualizar_painel():
         if s["erro"]:
             st.error(f"Erro MQTT: {s['erro']}")
 
-        # métricas internas (uma linha de cards; valores por cinto quando houver vários)
-        def _por_cinto(d, fmt):
-            if not d:
-                return "—"
-            if len(d) == 1:
-                return fmt(next(iter(d.values())))
-            return " | ".join(f"{nome_cinto(k)}: {fmt(v)}" for k, v in sorted(d.items()))
-
-        prob_atual = {k: v[-1][1] for k, v in s["hist"].items() if v}
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Amostras recebidas", f"{s['total']:,}".replace(",", "."))
-        m2.metric("Cintos ativos", len(s["melhores"]))
-        m3.metric("Prob. queda atual", _por_cinto(prob_atual, lambda v: f"{v:.1%}"))
-        m4.metric("Taxa (Hz)", _por_cinto(s["taxa"], lambda v: f"{v:.0f}"))
+        m_quedas, m5, m6 = st.columns(3)
+        m_quedas.metric("Quantidade de quedas", f"{s['total_quedas']:,}".replace(",", "."))
         m5.metric("Amostras perdidas", _por_cinto(s["perdas"], lambda v: f"{100 * v:.1f}%"))
         m6.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))
 
