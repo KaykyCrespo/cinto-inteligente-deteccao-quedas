@@ -387,7 +387,7 @@ st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
 with st.sidebar:
     st.header("Detecção")
     detectar = st.checkbox("Ativar detecção de queda", value=True)
-    limiar = st.slider("Limiar de alarme (0 = usar o do modelo)", 0.0, 1.0, 0.0, 0.05)
+    limiar = st.slider("Limiar de alarme (0 = usar o do modelo)", 0.0, 1.0, 0.50, 0.05)
     st.divider()
     st.header("Gravação")
     gravacao_box = st.container()     # preenchido depois que a conexão existir
@@ -494,7 +494,7 @@ with monitor_tab:
 
     col_probabilidade, col_quedas = st.columns([3, 2])
     col_probabilidade.subheader("Probabilidade de queda")
-    N_PROB = 10
+    N_PROB = 8
     if s["hist"]:
         linhas = []
         rotulos = {}        # pos -> hh:mm:ss (do cinto com a janela mais recente)
@@ -528,6 +528,9 @@ with monitor_tab:
                 dominio.append(rotulo_limiar)
                 cores.append("red")
             escala_cor = alt.Scale(domain=dominio, range=cores)
+            eixo_probabilidade = alt.Axis(
+                format=".0%", values=[i / 10 for i in range(11)],
+                labelOverlap=False, labelBound=False)
             base = alt.Chart(df).encode(
                 x=alt.X("pos:Q", title="Horário",
                         scale=alt.Scale(domain=[-(N_PROB - 1), 0], nice=False),
@@ -535,7 +538,7 @@ with monitor_tab:
                                       labelAngle=-45, grid=True)),
                 y=alt.Y("probabilidade:Q", title="Probabilidade",
                     scale=alt.Scale(domain=[0, 1], nice=False),
-                    axis=alt.Axis(format=".0%", values=[i / 10 for i in range(11)])),
+                    axis=eixo_probabilidade),
                 color=alt.Color("cinto:N", title=None, scale=escala_cor),
                 tooltip=[
                     alt.Tooltip("horario_label:N", title="Horário"),
@@ -548,7 +551,8 @@ with monitor_tab:
             if cx.detector is not None:
                 limiar_df = pd.DataFrame({"y": [cx.detector.limiar], "cinto": [rotulo_limiar]})
                 chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
-                    y="y:Q", color=alt.Color("cinto:N", title=None, scale=escala_cor),
+                    y=alt.Y("y:Q", axis=eixo_probabilidade),
+                    color=alt.Color("cinto:N", title=None, scale=escala_cor),
                     tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
             chart_spec = chart.properties(height=260).configure_legend(
                 orient="top", direction="horizontal", offset=12).to_dict()
@@ -560,13 +564,14 @@ with monitor_tab:
         col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
 
     # -------- quedas detectadas --------
-    col_quedas.subheader("Quedas detectadas")
+    col_quedas.subheader("Quedas Detectadas")
     if s["quedas"]:
         df_quedas = pd.DataFrame(s["quedas"]).reindex(
             columns=["data", "hora", "cinto", "antena", "prob", "amax (g)", "gmax", "quadrante"])
         df_quedas["data"] = pd.to_datetime(df_quedas["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
         df_quedas["prob"] = df_quedas["prob"].map(lambda valor: f"{valor:.1%}")
         df_quedas = df_quedas.rename(columns={
+            "data": "Data", "hora": "Hora", "cinto": "Cinto", "antena": "Antena", "prob": "Prob",
             "amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)", "quadrante": "Quadrate"})
         col_quedas.dataframe(df_quedas, width="stretch", hide_index=True)
     else:
