@@ -512,36 +512,41 @@ with monitor_tab:
                         if ultima_queda:
                             data_queda = pd.to_datetime(ultima_queda["data"], format="%Y-%m-%d").strftime("%d/%m/%Y")
                             st.error(
-                                "**STATUS: QUEDA DETECTADA**\n\n"
+                                "**STATUS: POSSÍVEL QUEDA**\n\n"
                                 f"**Cinto:** {nome_exibicao}  \n"
-                                f"**Data:** {data_queda} · **Hora:** {ultima_queda['hora']}  \n"
-                                f"**Perto da antena:** {ultima_queda['antena']} · "
+                                f"**Data:** {data_queda} | **Hora:** {ultima_queda['hora']}  \n"
+                                f"**Perto da antena:** {ultima_queda['antena']} | "
                                 f"**Quadrante:** {ultima_queda.get('quadrante') or 'indisponível'}  \n"
-                                f"**Probabilidade:** {ultima_queda['prob']:.1%}", icon="🚨")
+                                f"**Probabilidade:** {ultima_queda['prob']:.1%}")
                         else:
-                            st.success("STATUS: NORMAL", icon="✅")
+                            st.success("STATUS: NORMAL")
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
                     c2.metric("Amostras recebidas", s["total"])
+                    c2.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
                     c3.metric("Cintos ativos", len(s["melhores"]))
+                    if last.get("eletrodos_conectados") == 0:
+                        c3.warning("Status Eletrodo: solto")
+                    elif last.get("eletrodos_conectados") == 1:
+                        c3.success("Status Eletrodo: conectado")
+                    else:
+                        c3.caption("Status Eletrodo: indisponível")
                     c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
                     c4.caption("Antena mais perto")
                     c4.markdown(
                         '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
                         f'<span style="font-size:2rem">{m["antena"]}</span>'
-                        f'<span style="color:gray;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
+                        f'<span style="color:gray;background:rgba(128,128,128,0.18);border-radius:8px;'
+                        f'padding:2px 8px;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
                         unsafe_allow_html=True)
                     pos = s["posicoes"].get(cinto)
                     c1.metric("Quadrante", pos["quadrante"] if pos else "—",
                              pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
                     if pos and pos["confianca"] == "baixa":
                         st.warning(f"Localização incerta · última posição válida há {pos['idade_s']:.1f} s")
-                    st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz")
                     if prob is not None:
                         st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.1%}")
-                    if last.get("eletrodos_conectados") == 0:
-                        st.warning("Eletrodos soltos")
-                    else:
+                    if last.get("eletrodos_conectados") != 0:
                         st.caption(f"ECG (AD8232): {last.get('sinal_ad8232')}")
                     if s["perdas"].get(cinto, 0) > 0.05:
                         st.warning(f"{100 * s['perdas'][cinto]:.0f}% das amostras perdidas")
