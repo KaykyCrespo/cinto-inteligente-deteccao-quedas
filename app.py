@@ -260,7 +260,7 @@ class Conexao:
                     "prob": round(j["prob"], 2), "amax (g)": j["features"]["amax"],
                     "tilt (graus)": j["features"]["tilt"],
                 })
-                self._evento(f"QUEDA cinto {cinto} prob {j['prob']:.2f} perto da antena {j['anchor']}")
+                self._evento(f"QUEDA cinto {cinto} prob {j['prob']:.1%} perto da antena {j['anchor']}")
                 enviar_tg = self.telegram_ativo and tg.configurado()
                 rssi_anchor = self.detector.rssi[cinto].get(j["anchor"])
         if j["queda"]:
@@ -451,7 +451,7 @@ with monitor_tab:
         q = s["quedas"][0]
         onde = f" — quadrante {q['quadrante']}" if q.get("quadrante") else ""
         st.error(f"**QUEDA DETECTADA** — cinto {nome_cinto(q['cinto'])} às {q['hora']} "
-                 f"(prob {q['prob']:.2f}) perto da antena {q['antena']}{onde}", icon="🚨")
+                 f"(prob {q['prob']:.1%}) perto da antena {q['antena']}{onde}", icon="🚨")
 
     # -------- cartões por cinto --------
     if not s["melhores"]:
@@ -478,7 +478,7 @@ with monitor_tab:
                         st.warning(f"Localização incerta · última posição válida há {pos['idade_s']:.1f} s")
                     st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz")
                     if prob is not None:
-                        st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.2f}")
+                        st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.1%}")
                     if last.get("eletrodos_conectados") == 0:
                         st.warning("Eletrodos soltos")
                     else:
@@ -490,7 +490,8 @@ with monitor_tab:
                     else:
                         st.caption(f"Última leitura há {m['idade']:.1f}s")
 
-    st.subheader("Probabilidade de queda")
+    col_probabilidade, col_quedas = st.columns([3, 2])
+    col_probabilidade.subheader("Probabilidade de queda")
     N_PROB = 10
     if s["hist"]:
         linhas = []
@@ -546,16 +547,18 @@ with monitor_tab:
                 chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
                     y="y:Q", color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
                     tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
-            st.altair_chart(chart.properties(height=260), width="stretch")
+            col_probabilidade.altair_chart(chart.properties(height=260).configure_legend(titlePadding=12), width="stretch")
         else:
-            st.caption("Nenhuma probabilidade de queda registrada.")
+            col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
+    else:
+        col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
 
     # -------- quedas detectadas --------
-    st.subheader("Quedas detectadas")
+    col_quedas.subheader("Quedas detectadas")
     if s["quedas"]:
-        st.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
+        col_quedas.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
     else:
-        st.caption("Nenhuma queda detectada.")
+        col_quedas.caption("Nenhuma queda detectada.")
 
 with detalhes_tab:
     col1, col2, col3, col4 = st.columns(4)
@@ -593,7 +596,7 @@ with detalhes_tab:
     m1, m2, m3, m4, m5, m6 = st.columns(6)
     m1.metric("Amostras recebidas", s["total"])
     m2.metric("Cintos ativos", len(s["melhores"]))
-    m3.metric("Prob. queda atual", _por_cinto(prob_atual, lambda v: f"{v:.2f}"))
+    m3.metric("Prob. queda atual", _por_cinto(prob_atual, lambda v: f"{v:.1%}"))
     m4.metric("Taxa (Hz)", _por_cinto(s["taxa"], lambda v: f"{v:.0f}"))
     m5.metric("Amostras perdidas", _por_cinto(s["perdas"], lambda v: f"{100 * v:.1f}%"))
     m6.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))

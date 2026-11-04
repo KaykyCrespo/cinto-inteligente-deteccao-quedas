@@ -83,7 +83,7 @@ def mensagem_queda(cinto, quando: datetime, anchor, rssi, prob, amax, tilt, quad
             f"Cinto: {cinto}\n"
             f"Hora: {quando:%d/%m/%Y %H:%M:%S}\n"
             f"Local: {local}\n"
-            f"Confiança: {prob:.2f}  |  pico {amax:.1f} g, inclinação {tilt:.0f}°")
+            f"Confiança: {prob:.1%}  |  pico {amax:.1f} g, inclinação {tilt:.0f}°")
 
 
 def mensagem_teste() -> str:
