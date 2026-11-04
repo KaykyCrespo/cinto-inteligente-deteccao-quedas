@@ -521,7 +521,7 @@ with monitor_tab:
             paleta = ["#4c78a8", "#f58518", "#54a24b", "#72b7b2", "#b279a2", "#eeca3b", "#9d755d", "#bab0ac"]
             dominio, cores = list(cintos), paleta[:len(cintos)]
             if cx.detector is not None:
-                rotulo_limiar = f"Limiar de alerta ({cx.detector.limiar:.2f})"
+                rotulo_limiar = f"Limiar de alerta ({cx.detector.limiar:.0%})"
                 dominio.append(rotulo_limiar)
                 cores.append("red")
             escala_cor = alt.Scale(domain=dominio, range=cores)
@@ -531,13 +531,13 @@ with monitor_tab:
                         axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), labelExpr=label_expr,
                                       labelAngle=-45, grid=True)),
                 y=alt.Y("probabilidade:Q", title="Probabilidade",
-                        scale=alt.Scale(domain=[0, 1], nice=False)),
+                    scale=alt.Scale(domain=[0, 1], nice=False), axis=alt.Axis(format=".0%")),
                 color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
                 tooltip=[
                     alt.Tooltip("horario_label:N", title="Horário"),
                     alt.Tooltip("data_label:N", title="Data"),
                     alt.Tooltip("cinto:N", title="Cinto"),
-                    alt.Tooltip("probabilidade:Q", title="Probabilidade", format=".2f"),
+                    alt.Tooltip("probabilidade:Q", title="Probabilidade", format=".1%"),
                 ],
             )
             chart = base.mark_line() + base.mark_point(filled=True, size=60)
@@ -545,7 +545,7 @@ with monitor_tab:
                 limiar_df = pd.DataFrame({"y": [cx.detector.limiar], "cinto": [rotulo_limiar]})
                 chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
                     y="y:Q", color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
-                    tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".2f")])
+                    tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
             st.altair_chart(chart.properties(height=260), width="stretch")
         else:
             st.caption("Nenhuma probabilidade de queda registrada.")

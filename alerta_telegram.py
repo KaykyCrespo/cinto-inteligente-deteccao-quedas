@@ -15,6 +15,7 @@ Uso:
 import json
 import os
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -44,6 +45,19 @@ def enviar_sincrono(texto: str):
             if _post(texto):
                 return True, None
             erro = "Telegram respondeu ok=false"
+        except urllib.error.HTTPError as e:
+            descricao = str(e.reason)
+            try:
+                resposta = json.loads(e.read().decode("utf-8"))
+                if isinstance(resposta, dict) and isinstance(resposta.get("description"), str):
+                    descricao = resposta["description"]
+            except (ValueError, OSError):
+                pass
+            if TOKEN:
+                descricao = descricao.replace(TOKEN, "[token oculto]")
+            erro = f"Telegram HTTP {e.code}: {descricao}"
+            if e.code in (400, 401, 403, 404):
+                return False, erro
         except Exception as e:  # rede fora, token/chat inválidos, timeout
             # não inclui a URL (que carrega o token) na mensagem de erro
             erro = e.__class__.__name__ + (f": {e.reason}" if hasattr(e, "reason") else "")
