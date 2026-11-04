@@ -477,14 +477,6 @@ with monitor_tab:
     if s["invalidos"]:
         st.warning(f"{s['invalidos']} pacotes com formato inválido (veja os eventos abaixo).")
 
-    # -------- alertas de queda --------
-    alerta_queda = st.empty()
-    if s["quedas"]:
-        q = s["quedas"][0]
-        onde = f" — quadrante {q['quadrante']}" if q.get("quadrante") else ""
-        alerta_queda.error(f"**QUEDA DETECTADA** — cinto {nome_cinto(q['cinto'])} às {q['hora']} "
-                           f"(prob {q['prob']:.1%}) perto da antena {q['antena']}{onde}", icon="🚨")
-
     # -------- cartões por cinto --------
     if not s["melhores"]:
         if s["anchors"] and not s["total"]:
@@ -500,19 +492,34 @@ with monitor_tab:
             with cols[i % len(cols)]:
                 with st.container(border=True):
                     nome_exibicao = nome_cinto(cinto)
-                    st.markdown(f"### CINTO {nome_exibicao}")
-                    if s["faixa"]:
-                        st.caption(f"Cinto detectado: {s['faixa']}")
+                    cabecalho, status_cinto = st.columns([3, 2])
+                    with cabecalho:
+                        st.markdown(f"### CINTO {nome_exibicao}")
+                        if s["faixa"]:
+                            st.caption(f"Cinto detectado: {s['faixa']}")
+                    with status_cinto:
+                        ultima_queda = next((queda for queda in s["quedas"]
+                                             if str(queda["cinto"]) == str(cinto)), None)
+                        if ultima_queda:
+                            st.error("STATUS: QUEDA DETECTADA", icon="🚨")
+                            data_queda = pd.to_datetime(ultima_queda["data"], format="%Y-%m-%d").strftime("%d/%m/%Y")
+                            st.markdown(
+                                f"**Cinto:** {nome_exibicao}  \n"
+                                f"**Data e hora:** {data_queda} {ultima_queda['hora']}  \n"
+                                f"**Perto da antena:** {ultima_queda['antena']}  \n"
+                                f"**Quadrante:** {ultima_queda.get('quadrante') or 'indisponível'}  \n"
+                                f"**Probabilidade:** {ultima_queda['prob']:.1%}")
+                        else:
+                            st.success("STATUS: NORMAL", icon="✅")
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
                     c2.metric("Amostras recebidas", s["total"])
                     c3.metric("Cintos ativos", len(s["melhores"]))
                     c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
+                    c4.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
                     pos = s["posicoes"].get(cinto)
-                    a, b = st.columns(2)
-                    a.metric("Quadrante", pos["quadrante"] if pos else "—",
+                    c1.metric("Quadrante", pos["quadrante"] if pos else "—",
                              pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
-                    b.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
                     if pos and pos["confianca"] == "baixa":
                         st.warning(f"Localização incerta · última posição válida há {pos['idade_s']:.1f} s")
                     st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz")
