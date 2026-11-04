@@ -37,10 +37,12 @@ def _post(texto: str) -> bool:
         return bool(json.loads(r.read().decode("utf-8")).get("ok"))
 
 
-def enviar_sincrono(texto: str):
+def enviar_sincrono(texto: str, permitido=None):
     """Retorna (ok, erro). Faz até TENTATIVAS tentativas."""
     erro = None
     for _ in range(TENTATIVAS):
+        if permitido is not None and not permitido():
+            return False, "Envio cancelado: alertas desativados"
         try:
             if _post(texto):
                 return True, None
@@ -64,10 +66,10 @@ def enviar_sincrono(texto: str):
     return False, erro
 
 
-def enviar(texto: str, callback=None):
+def enviar(texto: str, callback=None, permitido=None):
     """Envia em segundo plano para não travar o callback MQTT. callback(ok, erro) opcional."""
     def _run():
-        ok, erro = enviar_sincrono(texto)
+        ok, erro = enviar_sincrono(texto, permitido=permitido)
         if callback:
             callback(ok, erro)
     threading.Thread(target=_run, daemon=True).start()

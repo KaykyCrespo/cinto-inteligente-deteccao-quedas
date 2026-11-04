@@ -100,7 +100,9 @@ class Conexao:
         self.ultima_gravacao = None # caminhos da última gravação encerrada
 
         # alerta Telegram (ligado/desligado pela barra lateral)
-        self.telegram_ativo = tg.configurado()
+        self.telegram_ativo = False
+        self.telegram_geracao = 0
+        self.fechada = False
         self.tg_status = None       # {"hora", "ok", "erro", "tipo"} do último envio
 
         # localização por RSSI (quadrante)
@@ -263,6 +265,7 @@ class Conexao:
                 })
                 self._evento(f"QUEDA cinto {cinto} prob {j['prob']:.1%} perto da antena {j['anchor']}")
                 enviar_tg = self.telegram_ativo and tg.configurado()
+                geracao_tg = self.telegram_geracao
                 rssi_anchor = self.detector.rssi[cinto].get(j["anchor"])
         if j["queda"]:
             pos = self.loc.estimar(cinto, t)
@@ -275,7 +278,20 @@ class Conexao:
             texto = tg.mensagem_queda(nome_cinto(cinto), agora, j["anchor"], rssi_anchor,
                                       j["prob"], j["features"]["amax"], j["features"]["tilt"],
                                       quadrante=local_queda)
-            tg.enviar(texto, callback=lambda ok, erro: self._tg_resultado(ok, erro, "queda"))
+            tg.enviar(texto, callback=lambda ok, erro: self._tg_resultado(ok, erro, "queda"),
+                      permitido=lambda: self._telegram_permitido(geracao_tg))
+
+    def configurar_telegram(self, ativo):
+        with self.lock:
+            ativo = bool(ativo)
+            if self.telegram_ativo != ativo:
+                self.telegram_geracao += 1
+            self.telegram_ativo = ativo
+
+    def _telegram_permitido(self, geracao):
+        with self.lock:
+            return (not self.fechada and self.detectar and self.telegram_ativo
+                    and self.telegram_geracao == geracao and tg.configurado())
 
     def _tg_resultado(self, ok, erro, tipo):
         with self.lock:
@@ -328,6 +344,10 @@ class Conexao:
         return _para_csv(linhas, JANELA_COLS)
 
     def fechar(self):
+        with self.lock:
+            self.fechada = True
+            self.telegram_ativo = False
+            self.telegram_geracao += 1
         self.parar_gravacao()
         try:
             self.client.loop_stop()
@@ -369,9 +389,17 @@ def conectar(*params):
             h["cx"].fechar()
         with st.spinner("Conectando ao broker..."):
             h["cx"] = Conexao(*params)
+            h["cx"].configurar_telegram(h.get("telegram_ativo", False))
         h["params"] = params
         h["versao"] = _VERSAO_CONEXAO
     return h["cx"]
+
+
+def atualizar_alertas_telegram():
+    h = _holder()
+    h["telegram_ativo"] = bool(st.session_state["enviar_alerta_queda"])
+    if "cx" in h:
+        h["cx"].configurar_telegram(h["telegram_ativo"])
 
 
 def nome_cinto(cinto):
@@ -385,34 +413,36 @@ def nome_cinto(cinto):
 st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
 
 with st.sidebar:
-    st.header("Detecção")
-    detectar = st.checkbox("Ativar detecção de queda", value=True)
-    limiar = st.slider("Limiar de alarme (0 = usar o do modelo)", 0.0, 1.0, 0.50, 0.05)
-    st.divider()
-    st.header("Gravação")
-    gravacao_box = st.container()     # preenchido depois que a conexão existir
-    st.divider()
-    st.header("Alerta Telegram")
+    st.image(os.path.join(os.path.dirname(__file__), "assets", "logo_oqpnb.svg"), width=180)
+    st.header("Alertas de queda")
     tg_ok = tg.configurado()
-    telegram_ativo = st.toggle("Enviar alerta de queda", value=tg_ok, disabled=not tg_ok)
+    h = _holder()
+    st.session_state["enviar_alerta_queda"] = bool(h.setdefault("telegram_ativo", tg_ok) and tg_ok)
+    telegram_ativo = st.toggle("Enviar alerta de quedas", key="enviar_alerta_queda",
+                              disabled=not tg_ok, on_change=atualizar_alertas_telegram)
     telegram_box = st.container()
     if not tg_ok:
         st.caption("Defina OQPNB_TG_TOKEN e OQPNB_TG_CHAT antes de abrir o app.")
+    limiar = st.slider("Limiar de alarme (0 = usar o do modelo)", 0.0, 1.0, 0.50, 0.05)
     st.divider()
     st.header("Tela")
     auto = st.toggle("Atualizar automaticamente", value=True)
     intervalo = st.slider("Intervalo (s)", 0.5, 5.0, 1.0, 0.5)
     st.divider()
-    params = (BROKER, PORT, detectar, limiar or None)
+    st.header("Gravação de amostras")
+    gravacao_box = st.container()     # preenchido depois que a conexão existir
+    st.divider()
+    params = (BROKER, PORT, True, limiar or None)
     if st.button("Reconectar", width="stretch"):
         h = _holder()
         if "cx" in h:
             h["cx"].fechar()
+        manter_telegram = h.get("telegram_ativo", False)
         h.clear()
+        h["telegram_ativo"] = manter_telegram
         st.rerun()
 
 cx = conectar(*params)
-cx.telegram_ativo = telegram_ativo
 
 with telegram_box:
     st.button("Testar envio", width="stretch", disabled=not tg_ok,
@@ -493,7 +523,7 @@ with monitor_tab:
                         st.caption(f"Última leitura há {m['idade']:.1f}s")
 
     col_probabilidade, col_quedas = st.columns([1, 1])
-    col_probabilidade.subheader("Probabilidade de queda")
+    col_probabilidade.subheader("Probabilidade de Queda")
     N_PROB = 8
     if s["hist"]:
         linhas = []
