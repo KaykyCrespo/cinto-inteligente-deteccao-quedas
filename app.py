@@ -492,7 +492,7 @@ with monitor_tab:
                     else:
                         st.caption(f"Última leitura há {m['idade']:.1f}s")
 
-    col_probabilidade, col_quedas = st.columns([3, 2])
+    col_probabilidade, col_quedas = st.columns([1, 1])
     col_probabilidade.subheader("Probabilidade de queda")
     N_PROB = 8
     if s["hist"]:
@@ -554,7 +554,7 @@ with monitor_tab:
                     y=alt.Y("y:Q", axis=eixo_probabilidade),
                     color=alt.Color("cinto:N", title=None, scale=escala_cor),
                     tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
-            chart_spec = chart.properties(height=260).configure_legend(
+            chart_spec = chart.properties(height=400).configure_legend(
                 orient="top", direction="horizontal", offset=12).to_dict()
             chart_spec["config"]["legend"]["layout"] = {"top": {"anchor": "middle"}}
             col_probabilidade.vega_lite_chart(chart_spec, width="stretch")
