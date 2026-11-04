@@ -338,6 +338,7 @@ class Conexao:
                 "anchors": dict(self.anchors_status), "total": self.total, "invalidos": self.invalidos,
                 "conectado": self.conectado, "erro": self.erro, "faixa": self.faixa,
                 "tg_status": dict(self.tg_status) if self.tg_status else None,
+                "telegram_ativo": self.telegram_ativo,
                 "perdas": {c: det.taxa_perda(c) for c in det.amostras} if det else {},
                 "resets": dict(det.resets) if det else {},
                 "n_janelas": len(self.janelas),
@@ -726,12 +727,17 @@ def atualizar_painel():
             col3.metric("Modelo", "desligado")
             col3.caption(os.path.basename(MODELO) if os.path.exists(MODELO) else f"{MODELO} não encontrado")
         col3.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))
-        if not tg.configurado():
-            col4.metric("Telegram", "não configurado")
-        elif not telegram_ativo:
-            col4.metric("Telegram", "desligado")
+        col4.markdown("Telegram")
+        if s["telegram_ativo"] and tg.configurado():
+            col4.markdown(
+                '<span style="display:inline-block;color:#2eae67;'
+                'background:rgba(46,174,103,0.18);border-radius:8px;padding:2px 8px">'
+                'Ativado Bot</span>', unsafe_allow_html=True)
         else:
-            col4.metric("Telegram", "ativo")
+            col4.markdown(
+                '<span style="display:inline-block;color:#e6b422;'
+                'background:rgba(230,180,34,0.18);border-radius:8px;padding:2px 8px">'
+                'Desativado Bot</span>', unsafe_allow_html=True)
         col4.metric("Quantidade de quedas", f"{s['total_quedas']:,}".replace(",", "."))
         if s["tg_status"]:
             t_ = s["tg_status"]
@@ -780,6 +786,8 @@ def atualizar_painel():
         with col_antenas:
             ANTENAS = [1, 2, 3, 4]
             status_antenas = {str(k): v for k, v in s["anchors"].items()}
+            antenas_mais_perto = {str(m["antena"]) for m in s["melhores"].values()
+                                  if status_antenas.get(str(m["antena"])) != "offline"}
             # RSSI mais recente visto por cada antena (de qualquer cinto)
             rssi_antena = {}
             for linha in s["tabela"]:
@@ -797,11 +805,13 @@ def atualizar_painel():
                     else:
                         badge, cor = "SEM STATUS", "orange"
                     r = rssi_antena.get(str(antena))
-                    modo = ("GATT" if r[2] == "GATT" else "Advertising") if r and r[1] <= 10 and status != "offline" else "sem dados recentes"
+                    modo = ("GATT" if r[2] == "GATT" else "ADVERTISING") if r and r[1] <= 10 and status != "offline" else "sem dados recentes"
+                    cor_modo = "#4e9be8" if modo == "GATT" else "#c89120" if modo == "ADVERTISING" else "gray"
                     with col:
-                        st.markdown(f"**Anchor {antena}**")
+                        marca_proxima = ' <span style="color:gray;font-size:0.875rem">(Mais perto)</span>' if str(antena) in antenas_mais_perto else ""
+                        st.markdown(f"**Anchor {antena}**{marca_proxima}", unsafe_allow_html=True)
                         st.markdown(f":{cor}[● {badge}]")
-                        st.caption(f"Modo: {modo}")
+                        st.markdown(f'Modo: <span style="color:{cor_modo}">{modo}</span>', unsafe_allow_html=True)
                         st.metric("RSSI", f"{r[0]} dBm" if r else "—",
                                   f"há {r[1]:.0f} s" if r else None, delta_color="off",
                                   label_visibility="collapsed")
