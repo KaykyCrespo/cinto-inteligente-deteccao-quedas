@@ -409,6 +409,15 @@ def nome_cinto(cinto):
         return str(cinto)
 
 
+def queda_em_alerta(quedas, cinto, minutos, agora=None):
+    ultima = next((queda for queda in quedas if str(queda["cinto"]) == str(cinto)), None)
+    if ultima is None:
+        return None
+    instante = datetime.strptime(f"{ultima['data']} {ultima['hora']}", "%Y-%m-%d %H:%M:%S")
+    idade = ((datetime.now() if agora is None else agora) - instante).total_seconds()
+    return ultima if idade < minutos * 60 else None
+
+
 # ================= Interface =================
 st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
 
@@ -433,6 +442,7 @@ with st.sidebar:
     if not tg_ok:
         st.caption("Defina OQPNB_TG_TOKEN e OQPNB_TG_CHAT antes de abrir o app.")
     limiar = st.slider("Limiar de alarme (0 = usar o do modelo)", 0.0, 1.0, 0.50, 0.05)
+    tempo_reset_alerta = st.slider("Tempo para resetar alerta (min)", 1, 5, 2, 1)
     st.divider()
     st.header("Tela")
     auto = st.toggle("Atualizar automaticamente", value=True)
@@ -498,17 +508,16 @@ with monitor_tab:
                         if s["faixa"]:
                             st.caption(f"Cinto detectado: {s['faixa']}")
                     with status_cinto:
-                        ultima_queda = next((queda for queda in s["quedas"]
-                                             if str(queda["cinto"]) == str(cinto)), None)
+                        ultima_queda = queda_em_alerta(s["quedas"], cinto, tempo_reset_alerta)
                         if ultima_queda:
-                            st.error("STATUS: QUEDA DETECTADA", icon="🚨")
                             data_queda = pd.to_datetime(ultima_queda["data"], format="%Y-%m-%d").strftime("%d/%m/%Y")
-                            st.markdown(
+                            st.error(
+                                "**STATUS: QUEDA DETECTADA**\n\n"
                                 f"**Cinto:** {nome_exibicao}  \n"
-                                f"**Data e hora:** {data_queda} {ultima_queda['hora']}  \n"
-                                f"**Perto da antena:** {ultima_queda['antena']}  \n"
+                                f"**Data:** {data_queda} · **Hora:** {ultima_queda['hora']}  \n"
+                                f"**Perto da antena:** {ultima_queda['antena']} · "
                                 f"**Quadrante:** {ultima_queda.get('quadrante') or 'indisponível'}  \n"
-                                f"**Probabilidade:** {ultima_queda['prob']:.1%}")
+                                f"**Probabilidade:** {ultima_queda['prob']:.1%}", icon="🚨")
                         else:
                             st.success("STATUS: NORMAL", icon="✅")
                     c1, c2, c3, c4 = st.columns(4)
@@ -516,7 +525,12 @@ with monitor_tab:
                     c2.metric("Amostras recebidas", s["total"])
                     c3.metric("Cintos ativos", len(s["melhores"]))
                     c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
-                    c4.metric("Antena mais perto", str(m["antena"]), f"{m['rssi']:.0f} dBm", delta_color="off")
+                    c4.caption("Antena mais perto")
+                    c4.markdown(
+                        '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+                        f'<span style="font-size:2rem">{m["antena"]}</span>'
+                        f'<span style="color:gray;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
+                        unsafe_allow_html=True)
                     pos = s["posicoes"].get(cinto)
                     c1.metric("Quadrante", pos["quadrante"] if pos else "—",
                              pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
