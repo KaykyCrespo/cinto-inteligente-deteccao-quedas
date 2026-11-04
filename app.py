@@ -24,14 +24,17 @@ Gravação e download de CSV (barra lateral):
 import csv
 import hashlib
 import io
+import math
 import os
 import threading
 import time
 import uuid
 from collections import deque
 from datetime import datetime
+from html import escape
 
 import altair as alt
+import joblib
 import pandas as pd
 import paho.mqtt.client as mqtt
 import streamlit as st
@@ -365,6 +368,11 @@ def _para_csv(linhas, colunas):
 
 
 @st.cache_data(max_entries=4, show_spinner=False)
+def _limiar_do_modelo(caminho, mtime):
+    return float(joblib.load(caminho).get("limiar", 0.5))
+
+
+@st.cache_data(max_entries=4, show_spinner=False)
 def _ler_arquivo(caminho, mtime, tamanho):
     """Lê o CSV gravado uma vez só (o cache muda quando o arquivo muda)."""
     with open(caminho, "rb") as f:
@@ -418,6 +426,47 @@ def queda_em_alerta(quedas, cinto, minutos, agora=None):
     return ultima if idade < minutos * 60 else None
 
 
+def aviso_queda(queda, cinto, minutos, agora=None):
+    instante = datetime.strptime(f"{queda['data']} {queda['hora']}", "%Y-%m-%d %H:%M:%S")
+    idade = ((datetime.now() if agora is None else agora) - instante).total_seconds()
+    restantes = max(0, math.ceil(minutos * 60 - idade))
+    minutos_restantes, segundos_restantes = divmod(restantes, 60)
+    quadrante = queda.get("quadrante") or "Indisponível"
+    if quadrante.casefold() == "localização indisponível":
+        quadrante = "Indisponível"
+    return (
+        '<div role="alert" style="background:rgba(239,68,68,0.10);'
+        'border:1px solid rgba(239,68,68,0.25);border-left:3px solid #ef6c6c;'
+        'border-radius:8px;padding:14px;font-size:0.875rem;line-height:1.6">'
+        '<div style="color:#ef6c6c;font-size:0.95rem;font-weight:600;margin-bottom:8px">'
+        '🚨 POSSÍVEL QUEDA</div>'
+        f'<div style="margin-bottom:8px">Cinto <strong>{escape(nome_cinto(cinto))}</strong>'
+        f' · Probabilidade <strong>{queda["prob"]:.1%}</strong></div>'
+        '<div style="display:flex;flex-wrap:wrap;column-gap:16px">'
+        f'<span>Data: <strong>{instante:%d/%m/%Y}</strong></span>'
+        f'<span>Hora: <strong>{instante:%H:%M:%S}</strong></span></div>'
+        '<div style="display:flex;flex-wrap:wrap;column-gap:16px">'
+        f'<span>Antena: <strong>{escape(str(queda["antena"]))}</strong></span>'
+        f'<span>Quadrante: <strong>{escape(quadrante)}</strong></span></div>'
+        '<div style="opacity:0.7;font-size:0.8rem;margin-top:8px">'
+        f'Aviso visual encerra em {minutos_restantes}min {segundos_restantes:02d}s</div></div>'
+    )
+
+
+def mostrar_gravacao():
+    g = cx.status_gravacao()
+    status_gravacao = st.empty()
+    if g["ativa"]:
+        status_gravacao.success(f"Gravando: {g['n']} amostras ({g['seg'] / 60:.0f} min) — parte {g['parte']}")
+    if st.button("Parar gravação" if g["ativa"] else "Gravar amostras", width="stretch",
+                 type="primary" if g["ativa"] else "secondary", key="btn_gravacao"):
+        if g["ativa"]:
+            cx.parar_gravacao()
+        else:
+            cx.iniciar_gravacao()
+        st.rerun(scope="app")
+
+
 # ================= Interface =================
 st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
 
@@ -441,16 +490,23 @@ with st.sidebar:
     telegram_box = st.container()
     if not tg_ok:
         st.caption("Defina OQPNB_TG_TOKEN e OQPNB_TG_CHAT antes de abrir o app.")
-    limiar = st.slider("Limiar de alarme (0 = usar o do modelo)", 0.0, 1.0, 0.50, 0.05)
+    if os.path.exists(MODELO):
+        limiar_modelo = _limiar_do_modelo(MODELO, os.stat(MODELO).st_mtime_ns)
+        valor_modelo = f"{limiar_modelo:.2f}".replace(".", ",")
+        titulo_limiar = f"Limiar de alarme (0 = modelo: {valor_modelo} / {limiar_modelo:.0%})"
+    else:
+        titulo_limiar = "Limiar de alarme (0 = modelo indisponível)"
+    limiar = st.slider(titulo_limiar, 0.0, 1.0, 0.50, 0.05)
     tempo_reset_alerta = st.slider("Tempo para resetar alerta (min)", 1, 5, 2, 1)
     st.divider()
     st.header("Tela")
     auto = st.toggle("Atualizar automaticamente", value=True)
     intervalo = st.slider("Intervalo (s)", 0.5, 5.0, 1.0, 0.5)
     st.divider()
-    st.header("Gravação de amostras")
-    gravacao_box = st.empty()
     params = (BROKER, PORT, True, limiar or None)
+    cx = conectar(*params)
+    st.header("Gravação de amostras")
+    st.fragment(run_every=intervalo if auto else None)(mostrar_gravacao)()
     if st.button("Reconectar", width="stretch", type="primary"):
         h = _holder()
         if "cx" in h:
@@ -460,441 +516,428 @@ with st.sidebar:
         h["telegram_ativo"] = manter_telegram
         st.rerun()
 
-cx = conectar(*params)
-
 with telegram_box:
     st.button("Testar envio", width="stretch", disabled=not tg_ok,
               key="btn_tg_teste", on_click=cx.testar_telegram)
 
-with gravacao_box.container():
-    g = cx.status_gravacao()
-    # on_click: o callback roda antes do redesenho, então o clique não se perde no loop de rerun
-    if g["ativa"]:
-        st.success(f"Gravando: {g['n']} amostras ({g['seg'] / 60:.0f} min) — parte {g['parte']}")
-        st.button("Parar gravação", width="stretch", type="primary",
-                  key="btn_parar", on_click=cx.parar_gravacao)
-    else:
-        st.button("Gravar amostras", width="stretch",
-                  key="btn_gravar", on_click=cx.iniciar_gravacao)
+@st.fragment(run_every=intervalo if auto else None)
+def atualizar_painel():
+    s = cx.snapshot()
 
-s = cx.snapshot()
+    monitor_tab, detalhes_tab = st.tabs(["Monitoramento", "Detalhes técnicos"])
 
-monitor_tab, detalhes_tab = st.tabs(["Monitoramento", "Detalhes técnicos"])
+    with monitor_tab:
+        if s["erro"]:
+            st.error(f"Erro MQTT: {s['erro']}")
+        if s["invalidos"]:
+            st.warning(f"{s['invalidos']} pacotes com formato inválido (veja os eventos abaixo).")
 
-with monitor_tab:
-    if s["erro"]:
-        st.error(f"Erro MQTT: {s['erro']}")
-    if s["invalidos"]:
-        st.warning(f"{s['invalidos']} pacotes com formato inválido (veja os eventos abaixo).")
-
-    # -------- cartões por cinto --------
-    if not s["melhores"]:
-        if s["anchors"] and not s["total"]:
-            st.info("Antena online, mas nenhum pacote de cinto chegou ainda. "
-                    "Verifique no Serial da antena se ela mostra 'GATT: CONECTADO' e 'TX MQTT' > 0.")
+        # -------- cartões por cinto --------
+        if not s["melhores"]:
+            if s["anchors"] and not s["total"]:
+                st.info("Antena online, mas nenhum pacote de cinto chegou ainda. "
+                        "Verifique no Serial da antena se ela mostra 'GATT: CONECTADO' e 'TX MQTT' > 0.")
+            else:
+                st.info("Nenhuma leitura recente. Aguardando dados das antenas...")
         else:
-            st.info("Nenhuma leitura recente. Aguardando dados das antenas...")
-    else:
-        cols = st.columns(min(len(s["melhores"]), 4))
-        for i, (cinto, m) in enumerate(sorted(s["melhores"].items())):
-            last = m["last"] or {}
-            prob = s["hist"].get(cinto, [(None, None)])[-1][1]
-            with cols[i % len(cols)]:
-                with st.container(border=True):
-                    nome_exibicao = nome_cinto(cinto)
-                    cabecalho, status_cinto = st.columns([3, 2])
-                    with cabecalho:
-                        st.markdown(f"### CINTO {nome_exibicao}")
-                        if s["faixa"]:
-                            st.caption(f"Cinto detectado: {s['faixa']}")
-                    with status_cinto:
-                        ultima_queda = queda_em_alerta(s["quedas"], cinto, tempo_reset_alerta)
-                        if ultima_queda:
-                            data_queda = pd.to_datetime(ultima_queda["data"], format="%Y-%m-%d").strftime("%d/%m/%Y")
-                            st.error(
-                                "**STATUS: POSSÍVEL QUEDA**\n\n"
-                                f"**Cinto:** {nome_exibicao}  \n"
-                                f"**Data:** {data_queda} | **Hora:** {ultima_queda['hora']}  \n"
-                                f"**Perto da antena:** {ultima_queda['antena']} | "
-                                f"**Quadrante:** {ultima_queda.get('quadrante') or 'indisponível'}  \n"
-                                f"**Probabilidade:** {ultima_queda['prob']:.1%}")
+            cols = st.columns(min(len(s["melhores"]), 4))
+            for i, (cinto, m) in enumerate(sorted(s["melhores"].items())):
+                last = m["last"] or {}
+                prob = s["hist"].get(cinto, [(None, None)])[-1][1]
+                with cols[i % len(cols)]:
+                    with st.container(border=True):
+                        nome_exibicao = nome_cinto(cinto)
+                        cabecalho, status_cinto = st.columns([3, 2])
+                        with cabecalho:
+                            st.markdown(f"### CINTO {nome_exibicao}")
+                            if s["faixa"]:
+                                st.caption(f"Cinto detectado: {s['faixa']}")
+                        with status_cinto:
+                            agora_alerta = datetime.now()
+                            ultima_queda = queda_em_alerta(s["quedas"], cinto, tempo_reset_alerta, agora_alerta)
+                            if ultima_queda:
+                                st.markdown(aviso_queda(ultima_queda, cinto, tempo_reset_alerta, agora_alerta),
+                                            unsafe_allow_html=True)
+                            else:
+                                st.success("STATUS: NORMAL")
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
+                        c2.metric("Amostras recebidas", f"{s['total']:,}".replace(",", "."))
+                        c2.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
+                        c3.metric("Cintos ativos", len(s["melhores"]))
+                        if last.get("eletrodos_conectados") == 0:
+                            c3.markdown('Status Eletrodo: <span style="color:#e6b422">solto</span>',
+                                        unsafe_allow_html=True)
+                        elif last.get("eletrodos_conectados") == 1:
+                            c3.markdown('Status Eletrodo: <span style="color:#2eae67">conectado</span>',
+                                        unsafe_allow_html=True)
                         else:
-                            st.success("STATUS: NORMAL")
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
-                    c2.metric("Amostras recebidas", s["total"])
-                    c2.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
-                    c3.metric("Cintos ativos", len(s["melhores"]))
-                    if last.get("eletrodos_conectados") == 0:
-                        c3.warning("Status Eletrodo: solto")
-                    elif last.get("eletrodos_conectados") == 1:
-                        c3.success("Status Eletrodo: conectado")
-                    else:
-                        c3.caption("Status Eletrodo: indisponível")
-                    c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
-                    c4.caption("Antena mais perto")
-                    c4.markdown(
-                        '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
-                        f'<span style="font-size:2rem">{m["antena"]}</span>'
-                        f'<span style="color:gray;background:rgba(128,128,128,0.18);border-radius:8px;'
-                        f'padding:2px 8px;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
-                        unsafe_allow_html=True)
-                    pos = s["posicoes"].get(cinto)
-                    c1.metric("Quadrante", pos["quadrante"] if pos else "—",
-                             pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
-                    if pos and pos["confianca"] == "baixa":
-                        st.warning(f"Localização incerta · última posição válida há {pos['idade_s']:.1f} s")
-                    if prob is not None:
-                        st.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.1%}")
-                    if last.get("eletrodos_conectados") != 0:
-                        st.caption(f"ECG (AD8232): {last.get('sinal_ad8232')}")
-                    if s["perdas"].get(cinto, 0) > 0.05:
-                        st.warning(f"{100 * s['perdas'][cinto]:.0f}% das amostras perdidas")
-                    if s["resets"].get(cinto):
-                        st.caption(f"Janela reiniciada {s['resets'][cinto]}x por buraco nos dados | Última leitura há {m['idade']:.1f}s")
-                    else:
-                        st.caption(f"Última leitura há {m['idade']:.1f}s")
+                            c3.caption("Status Eletrodo: indisponível")
+                        c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
+                        c4.caption("Antena mais perto")
+                        c4.markdown(
+                            '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+                            f'<span style="font-size:2rem">{m["antena"]}</span>'
+                            f'<span style="color:gray;background:rgba(128,128,128,0.18);border-radius:8px;'
+                            f'padding:2px 8px;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
+                            unsafe_allow_html=True)
+                        pos = s["posicoes"].get(cinto)
+                        c1.metric("Quadrante", pos["quadrante"] if pos else "—",
+                                 pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
+                        progresso_queda = st.empty()
+                        if prob is not None:
+                            progresso_queda.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.1%}")
+                        leitura_ecg = st.empty()
+                        if last.get("eletrodos_conectados") != 0:
+                            leitura_ecg.caption(f"ECG (AD8232): {last.get('sinal_ad8232')}")
+                        aviso_perdas = st.empty()
+                        if s["perdas"].get(cinto, 0) > 0.05:
+                            aviso_perdas.warning(f"{100 * s['perdas'][cinto]:.0f}% das amostras perdidas")
+                        ultima_leitura = st.empty()
+                        if s["resets"].get(cinto):
+                            ultima_leitura.caption(f"Janela reiniciada {s['resets'][cinto]}x por buraco nos dados | Última leitura há {m['idade']:.1f}s")
+                        else:
+                            ultima_leitura.caption(f"Última leitura há {m['idade']:.1f}s")
 
-    col_probabilidade, col_quedas = st.columns([1, 1])
-    col_probabilidade.subheader("Probabilidade de Queda")
-    N_PROB = 8
-    if s["hist"]:
-        linhas = []
-        rotulos = {}        # pos -> hh:mm:ss (do cinto com a janela mais recente)
-        ref = max(s["hist"].items(), key=lambda kv: kv[1][-1][0] if kv[1] else datetime.min)[0]
-        for c, h in s["hist"].items():
-            ultimos = list(h)[-N_PROB:]
-            # posição fixa: 0 = janela mais recente, -1 = anterior, ... (eixo não depende do horário)
-            for pos, (t, p) in zip(range(-(len(ultimos) - 1), 1), ultimos):
-                dt = pd.to_datetime(t)
-                if c == ref:
-                    rotulos[pos] = dt.strftime("%H:%M:%S")
-                linhas.append({
-                    "pos": pos,
-                    "cinto": nome_cinto(c),
-                    "probabilidade": float(p),
-                    "horario_label": dt.strftime("%H:%M:%S"),
-                    "data_label": dt.strftime("%d %b %Y").upper(),
-                })
+        col_probabilidade, col_quedas = st.columns([1, 1])
+        col_probabilidade.subheader("Probabilidade de Queda")
+        N_PROB = 8
+        if s["hist"]:
+            linhas = []
+            rotulos = {}        # pos -> hh:mm:ss (do cinto com a janela mais recente)
+            ref = max(s["hist"].items(), key=lambda kv: kv[1][-1][0] if kv[1] else datetime.min)[0]
+            for c, h in s["hist"].items():
+                ultimos = list(h)[-N_PROB:]
+                # posição fixa: 0 = janela mais recente, -1 = anterior, ... (eixo não depende do horário)
+                for pos, (t, p) in zip(range(-(len(ultimos) - 1), 1), ultimos):
+                    dt = pd.to_datetime(t)
+                    if c == ref:
+                        rotulos[pos] = dt.strftime("%H:%M:%S")
+                    linhas.append({
+                        "pos": pos,
+                        "cinto": nome_cinto(c),
+                        "probabilidade": float(p),
+                        "horario_label": dt.strftime("%H:%M:%S"),
+                        "data_label": dt.strftime("%d %b %Y").upper(),
+                    })
 
-        if linhas:
-            df = pd.DataFrame(linhas)
-            # expressão Vega: troca o número da posição pelo horário da janela
-            mapa = ", ".join(f"'{pos}': '{rotulos.get(pos, '')}'" for pos in range(-(N_PROB - 1), 1))
-            label_expr = "{" + mapa + "}[toString(datum.value)]"
-            # uma escala de cor única para cintos + limiar, para o limiar aparecer na legenda
-            cintos = sorted(df["cinto"].unique())
-            paleta = ["#4c78a8", "#f58518", "#54a24b", "#72b7b2", "#b279a2", "#eeca3b", "#9d755d", "#bab0ac"]
-            dominio, cores = list(cintos), paleta[:len(cintos)]
-            if cx.detector is not None:
-                rotulo_limiar = f"Limiar de alerta ({cx.detector.limiar:.0%})"
-                dominio.append(rotulo_limiar)
-                cores.append("red")
-            escala_cor = alt.Scale(domain=dominio, range=cores)
-            eixo_probabilidade = alt.Axis(
-                format=".0%", values=[i / 10 for i in range(11)],
-                labelOverlap=False, labelBound=False)
-            base = alt.Chart(df).encode(
-                x=alt.X("pos:Q", title="Horário",
-                        scale=alt.Scale(domain=[-(N_PROB - 1), 0], nice=False),
-                        axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), labelExpr=label_expr,
-                                      labelAngle=-45, grid=True)),
-                y=alt.Y("probabilidade:Q", title="Probabilidade",
-                    scale=alt.Scale(domain=[0, 1], nice=False),
-                    axis=eixo_probabilidade),
-                color=alt.Color("cinto:N", title=None, scale=escala_cor),
-                tooltip=[
-                    alt.Tooltip("horario_label:N", title="Horário"),
-                    alt.Tooltip("data_label:N", title="Data"),
-                    alt.Tooltip("cinto:N", title="Cinto"),
-                    alt.Tooltip("probabilidade:Q", title="Probabilidade", format=".1%"),
-                ],
-            )
-            chart = base.mark_line() + base.mark_point(filled=True, size=60)
-            if cx.detector is not None:
-                limiar_df = pd.DataFrame({"y": [cx.detector.limiar], "cinto": [rotulo_limiar]})
-                chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
-                    y=alt.Y("y:Q", axis=eixo_probabilidade),
+            if linhas:
+                df = pd.DataFrame(linhas)
+                # expressão Vega: troca o número da posição pelo horário da janela
+                mapa = ", ".join(f"'{pos}': '{rotulos.get(pos, '')}'" for pos in range(-(N_PROB - 1), 1))
+                label_expr = "{" + mapa + "}[toString(datum.value)]"
+                # uma escala de cor única para cintos + limiar, para o limiar aparecer na legenda
+                cintos = sorted(df["cinto"].unique())
+                paleta = ["#4c78a8", "#f58518", "#54a24b", "#72b7b2", "#b279a2", "#eeca3b", "#9d755d", "#bab0ac"]
+                dominio, cores = list(cintos), paleta[:len(cintos)]
+                if cx.detector is not None:
+                    rotulo_limiar = f"Limiar de alerta ({cx.detector.limiar:.0%})"
+                    dominio.append(rotulo_limiar)
+                    cores.append("red")
+                escala_cor = alt.Scale(domain=dominio, range=cores)
+                eixo_probabilidade = alt.Axis(
+                    format=".0%", values=[i / 10 for i in range(11)],
+                    labelOverlap=False, labelBound=False)
+                base = alt.Chart(df).encode(
+                    x=alt.X("pos:Q", title="Horário",
+                            scale=alt.Scale(domain=[-(N_PROB - 1), 0], nice=False),
+                            axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), labelExpr=label_expr,
+                                          labelAngle=-45, grid=True)),
+                    y=alt.Y("probabilidade:Q", title="Probabilidade",
+                        scale=alt.Scale(domain=[0, 1], nice=False),
+                        axis=eixo_probabilidade),
                     color=alt.Color("cinto:N", title=None, scale=escala_cor),
-                    tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
-            chart_spec = chart.properties(height=400).configure_legend(
-                orient="top", direction="horizontal", offset=12).to_dict()
-            chart_spec["config"]["legend"]["layout"] = {"top": {"anchor": "middle"}}
-            col_probabilidade.vega_lite_chart(chart_spec, width="stretch")
+                    tooltip=[
+                        alt.Tooltip("horario_label:N", title="Horário"),
+                        alt.Tooltip("data_label:N", title="Data"),
+                        alt.Tooltip("cinto:N", title="Cinto"),
+                        alt.Tooltip("probabilidade:Q", title="Probabilidade", format=".1%"),
+                    ],
+                )
+                chart = base.mark_line() + base.mark_point(filled=True, size=60)
+                if cx.detector is not None:
+                    limiar_df = pd.DataFrame({"y": [cx.detector.limiar], "cinto": [rotulo_limiar]})
+                    chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
+                        y=alt.Y("y:Q", axis=eixo_probabilidade),
+                        color=alt.Color("cinto:N", title=None, scale=escala_cor),
+                        tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
+                chart_spec = chart.properties(height=400).configure_legend(
+                    orient="top", direction="horizontal", offset=12).to_dict()
+                chart_spec["config"]["legend"]["layout"] = {"top": {"anchor": "middle"}}
+                col_probabilidade.vega_lite_chart(chart_spec, width="stretch")
+            else:
+                col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
         else:
             col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
-    else:
-        col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
 
-    # -------- quedas detectadas --------
-    col_quedas.subheader("Quedas Detectadas")
-    if s["quedas"]:
-        df_quedas = pd.DataFrame(s["quedas"]).reindex(
-            columns=["data", "hora", "cinto", "antena", "prob", "amax (g)", "gmax", "quadrante"])
-        df_quedas["data"] = pd.to_datetime(df_quedas["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
-        df_quedas["prob"] = df_quedas["prob"].map(lambda valor: f"{valor:.1%}")
-        df_quedas = df_quedas.rename(columns={
-            "data": "Data", "hora": "Hora", "cinto": "Cinto", "antena": "Antena", "prob": "Prob",
-            "amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)", "quadrante": "Quadrate"})
-        col_quedas.dataframe(df_quedas, width="stretch", hide_index=True)
-    else:
-        col_quedas.caption("Nenhuma queda detectada.")
-
-with detalhes_tab:
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
-    col2.metric("Pacotes inválidos", s["invalidos"])
-    if cx.detector is not None:
-        col3.metric("Modelo", os.path.basename(MODELO), f"limiar {cx.detector.limiar:.2f}", delta_color="off")
-        col3.caption(s["faixa"])
-    else:
-        col3.metric("Modelo", "desligado")
-        col3.caption(os.path.basename(MODELO) if os.path.exists(MODELO) else f"{MODELO} não encontrado")
-    if not tg.configurado():
-        col4.metric("Telegram", "não configurado")
-    elif not telegram_ativo:
-        col4.metric("Telegram", "desligado")
-    else:
-        col4.metric("Telegram", "ativo")
-    if s["tg_status"]:
-        t_ = s["tg_status"]
-        col4.caption(f"último envio ({t_['tipo']}) {t_['hora']:%H:%M:%S}: "
-                     + ("OK" if t_["ok"] else f"falhou — {t_['erro']}"))
-
-    if s["erro"]:
-        st.error(f"Erro MQTT: {s['erro']}")
-
-    # métricas internas (uma linha de cards; valores por cinto quando houver vários)
-    def _por_cinto(d, fmt):
-        if not d:
-            return "—"
-        if len(d) == 1:
-            return fmt(next(iter(d.values())))
-        return " | ".join(f"{nome_cinto(k)}: {fmt(v)}" for k, v in sorted(d.items()))
-
-    prob_atual = {k: v[-1][1] for k, v in s["hist"].items() if v}
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    m1.metric("Amostras recebidas", s["total"])
-    m2.metric("Cintos ativos", len(s["melhores"]))
-    m3.metric("Prob. queda atual", _por_cinto(prob_atual, lambda v: f"{v:.1%}"))
-    m4.metric("Taxa (Hz)", _por_cinto(s["taxa"], lambda v: f"{v:.0f}"))
-    m5.metric("Amostras perdidas", _por_cinto(s["perdas"], lambda v: f"{100 * v:.1f}%"))
-    m6.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))
-
-    st.subheader("Status do sistema")
-    col_cinto, col_antenas = st.columns([1, 2])
-    ALT_CARD = 220                       # mesma altura para o card do cinto e o das antenas
-
-    with col_cinto:
-        cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
-        if cinto_ids:
-            for cinto in cinto_ids:
-                m = s["melhores"].get(cinto)
-                last = (m or {}).get("last") or {}
-                with st.container(border=True, height=ALT_CARD):
-                    if m:
-                        st.markdown(f"**CINTO {nome_cinto(cinto)}** :green[● ONLINE]")
-                        st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
-                        st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz | "
-                                   f"Eletrodos: {'OK' if last.get('eletrodos_conectados') == 1 else 'soltos'}")
-                        st.caption(f"Última leitura há {m['idade']:.1f} s")
-                    else:
-                        st.markdown(f"**CINTO {nome_cinto(cinto)}** :red[● OFFLINE]")
-                        st.caption("Sem leitura nos últimos 10 s")
-        else:
-            with st.container(border=True, height=ALT_CARD):
-                st.markdown("**CINTO —** :orange[● SEM CINTO]")
-                st.caption("Nenhum cinto detectado")
-
-    with col_antenas:
-        ANTENAS = [1, 2, 3, 4]
-        status_antenas = {str(k): v for k, v in s["anchors"].items()}
-        # RSSI mais recente visto por cada antena (de qualquer cinto)
-        rssi_antena = {}
-        for linha in s["tabela"]:
-            a = str(linha["antena"])
-            if linha["RSSI atual"] is not None and (a not in rssi_antena or linha["idade (s)"] < rssi_antena[a][1]):
-                rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"], linha["origem"])
-        with st.container(border=True, height=ALT_CARD):
-            cols = st.columns(len(ANTENAS))
-            for col, antena in zip(cols, ANTENAS):
-                status = status_antenas.get(str(antena))
-                if status == "online":
-                    badge, cor = "ONLINE", "green"
-                elif status == "offline":
-                    badge, cor = "OFFLINE", "red"
-                else:
-                    badge, cor = "SEM STATUS", "orange"
-                r = rssi_antena.get(str(antena))
-                modo = ("GATT" if r[2] == "GATT" else "Advertising") if r and r[1] <= 10 and status != "offline" else "sem dados recentes"
-                with col:
-                    st.markdown(f"**Anchor {antena}**")
-                    st.markdown(f":{cor}[● {badge}]")
-                    st.caption(f"Modo: {modo}")
-                    st.metric("RSSI", f"{r[0]} dBm" if r else "—",
-                              f"há {r[1]:.0f} s" if r else None, delta_color="off",
-                              label_visibility="collapsed")
-
-    st.subheader("Gráficos de sinais")
-    if s["sinal"]:
-        JANELA_S = 5
-        N_TICKS = 5
-        # instante da amostra mais recente = borda direita (0 s); eixo fixo de -5 s a 0 s
-        t_ref = max(pts[-1][0] for pts in s["sinal"].values() if pts)
-        # 5 marcas fixas igualmente espaçadas na janela (-5, -3.75, -2.5, -1.25, 0 s)
-        ticks = [round(-JANELA_S + i * JANELA_S / (N_TICKS - 1), 4) for i in range(N_TICKS)]
-        rotulos_t = {k: (t_ref + pd.Timedelta(seconds=k)).strftime("%H:%M:%S") for k in ticks}
-        # chaves no formato que toString() do Vega produz ("-5", "-3.75", "0")
-        mapa_t = ", ".join(f"'{k:g}': '{v}'" for k, v in rotulos_t.items())
-        label_expr_t = "{" + mapa_t + "}[toString(datum.value)]"
-
-        def grafico_sinal(idx, titulo_y):
-            linhas = []
-            for c, pts in s["sinal"].items():
-                nome = nome_cinto(c)
-                for p in pts:
-                    if len(p) <= idx:
-                        continue
-                    dt_s = (p[0] - t_ref).total_seconds()
-                    if dt_s < -JANELA_S:
-                        continue
-                    linhas.append({"t": dt_s, "valor": p[idx], "cinto": nome,
-                                   "horario": p[0].strftime("%H:%M:%S.%f")[:-3]})
-            df = pd.DataFrame(linhas)
-            return alt.Chart(df).mark_line().encode(
-                x=alt.X("t:Q", title="Horário",
-                        scale=alt.Scale(domain=[-JANELA_S, 0], nice=False),
-                        axis=alt.Axis(values=ticks, labelExpr=label_expr_t,
-                                      labelAngle=-45, grid=True)),
-                y=alt.Y("valor:Q", title=titulo_y),
-                color=alt.Color("cinto:N", title="Legenda"),
-                tooltip=[alt.Tooltip("horario:N", title="Horário"),
-                         alt.Tooltip("cinto:N", title="Cinto"),
-                         alt.Tooltip("valor:Q", title=titulo_y, format=".2f")],
-            ).properties(height=220)
-
-        g1, g2 = st.columns(2)
-        with g1:
-            st.caption("Acelerômetro |a| - Últimos 5s")
-            st.altair_chart(grafico_sinal(1, "|a|"), width="stretch")
-        with g2:
-            st.caption("Giroscópio |ω| (°/s) — Últimos 5s")
-            st.altair_chart(grafico_sinal(2, "|ω| (°/s)"), width="stretch")
-    else:
-        st.caption("Sem dados de sinal para plotar.")
-
-    col_localizacao, col_ecg = st.columns(2)
-    with col_localizacao:
-        st.subheader("Localização indoor")
-        L = loc.LADO_M
-        anc_df = pd.DataFrame([{"x": x, "y": y, "rotulo": f"Anchor {i}"} for i, (x, y) in loc.ANCHORS.items()])
-        quad_df = pd.DataFrame([
-            {"x": L / 4, "y": 3 * L / 4, "q": "SE"}, {"x": 3 * L / 4, "y": 3 * L / 4, "q": "SD"},
-            {"x": L / 4, "y": L / 4, "q": "IE"}, {"x": 3 * L / 4, "y": L / 4, "q": "ID"}])
-        pos_rows = []
-        for c, p in s["posicoes"].items():
-            if p:
-                pos_rows.append({"x": p["x"], "y": p["y"], "rotulo": nome_cinto(c), "quadrante": p["nome"],
-                                 "anchors": p["n_anchors"], "erro": p["erro_m"],
-                                 "confianca": p["confianca"], "idade": p["idade_s"]})
-        quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
-                                           if p and p["confianca"] == "boa"])
-        esc_x = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
-        esc_y = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
-        quad_df["x1"] = quad_df["x"] - L / 4; quad_df["x2"] = quad_df["x"] + L / 4
-        quad_df["y1"] = quad_df["y"] - L / 4; quad_df["y2"] = quad_df["y"] + L / 4
-        fundo = alt.Chart(quad_df).mark_rect(stroke="#888", strokeWidth=1).encode(
-            x=alt.X("x1:Q", scale=esc_x, title="x (m)"), x2="x2:Q",
-            y=alt.Y("y1:Q", scale=esc_y, title="y (m)"), y2="y2:Q",
-            color=alt.condition("datum.ativo", alt.value("#2e7d32"), alt.value("#2b2b2b")),
-            tooltip=[alt.Tooltip("q:N", title="Quadrante")])
-        rot_q = alt.Chart(quad_df).mark_text(color="#bbb", fontSize=14).encode(x="x:Q", y="y:Q", text="q:N")
-        anc_pts = alt.Chart(anc_df).mark_point(shape="triangle-up", size=250, filled=True, color="#f58518").encode(
-            x="x:Q", y="y:Q", tooltip=["rotulo:N"])
-        anc_txt = alt.Chart(anc_df).mark_text(dy=-16, color="#f58518").encode(x="x:Q", y="y:Q", text="rotulo:N")
-        mapa = fundo + rot_q + anc_pts + anc_txt
-        if pos_rows:
-            pos_df = pd.DataFrame(pos_rows)
-            mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
-                x="x:Q", y="y:Q",
-                color=alt.Color("confianca:N", title="Confiança",
-                                scale=alt.Scale(domain=["boa", "baixa"], range=["#4c78a8", "#e6a23c"])),
-                tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
-                         alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
-                         alt.Tooltip("confianca:N", title="Confiança"),
-                         alt.Tooltip("idade:Q", title="Idade da posição (s)", format=".1f"),
-                         alt.Tooltip("anchors:Q", title="Anchors usadas")])
-            mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
-        st.altair_chart(mapa.properties(height=380), width="stretch")
-        for c, p in sorted(s["posicoes"].items()):
-            if not p:
-                st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas")
-                continue
-            with st.container(border=True):
-                st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
-                if p["confianca"] == "baixa":
-                    st.warning(f"Baixa confiança: {p['motivo']}")
-                    st.caption(f"Última posição válida há {p['idade_s']:.1f} s; valores abaixo são dessa posição.")
-                else:
-                    st.caption("Confiança: boa")
-                st.caption("RSSI suavizado: " + ", ".join(f"A{a} {r:.0f} dBm" for a, r in sorted(p["rssi"].items())))
-                st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
-                if p["erro_m"] is not None:
-                    st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
-        st.caption(f"Lado {L:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
-    with col_ecg:
-        st.subheader("ECG bruto (AD8232)")
-        if s["sinal"]:
-            st.altair_chart(grafico_sinal(3, "ADC (0–4095)").properties(height=380), width="stretch")
-        else:
-            st.caption("Sem dados de ECG para plotar.")
-
-    with st.expander("Tabela RSSI por cinto × antena"):
-        if s["tabela"]:
-            df_rssi = pd.DataFrame(s["tabela"]).rename(columns={"idade (s)": "Janela de Conexão (s)"})
-            st.dataframe(df_rssi, width="stretch", hide_index=True)
-        else:
-            st.caption("Sem tabela RSSI disponível.")
-
-    with st.expander("Histórico de quedas"):
+        # -------- quedas detectadas --------
+        col_quedas.subheader("Quedas Detectadas")
         if s["quedas"]:
-            st.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
+            df_quedas = pd.DataFrame(s["quedas"]).reindex(
+                columns=["data", "hora", "cinto", "antena", "prob", "amax (g)", "gmax", "quadrante"])
+            df_quedas["data"] = pd.to_datetime(df_quedas["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
+            df_quedas["prob"] = df_quedas["prob"].map(lambda valor: f"{valor:.1%}")
+            df_quedas = df_quedas.rename(columns={
+                "data": "Data", "hora": "Hora", "cinto": "Cinto", "antena": "Antena", "prob": "Prob",
+                "amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)", "quadrante": "Quadrate"})
+            col_quedas.dataframe(df_quedas, width="stretch", hide_index=True)
         else:
-            st.caption("Nenhuma queda registrada.")
+            col_quedas.caption("Nenhuma queda detectada.")
 
-    st.subheader("Exportação de dados")
-    d1, d2, d3 = st.columns(3)
-    tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-    with d1:
-        st.download_button(f"Janelas analisadas ({s['n_janelas']})", cx.janelas_csv(),
-                           file_name=f"janelas_{tag}.csv", mime="text/csv",
-                           disabled=not s["n_janelas"], width="stretch")
-    with d2:
-        cols_q = ["data", "hora", "cinto", "antena", "quadrante", "prob", "amax (g)", "tilt (graus)"]
-        st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
-                           file_name=f"quedas_{tag}.csv", mime="text/csv",
-                           disabled=not s["quedas"], width="stretch")
-    with d3:
-        g = cx.status_gravacao()
-        if g["ativa"]:
-            st.button("Amostras: pare a gravação para baixar", disabled=True, width="stretch")
-        elif g["ultima"]:
-            partes = [p for p in g["ultima"]["partes"] if os.path.exists(p["caminho"])]
-            if not partes:
-                st.button("Amostras: arquivos da última gravação não encontrados", disabled=True, width="stretch")
-            for i, p in enumerate(partes, 1):
-                st_ = os.stat(p["caminho"])
-                rotulo = (f"Amostras da última gravação ({p['n']})" if len(partes) == 1
-                          else f"Amostras — parte {i}/{len(partes)} ({p['n']})")
-                st.download_button(rotulo, _ler_arquivo(p["caminho"], st_.st_mtime, st_.st_size),
-                                   file_name=os.path.basename(p["caminho"]), mime="text/csv",
-                                   width="stretch", key=f"dl_parte_{i}")
+    with detalhes_tab:
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
+        col2.metric("Pacotes inválidos", s["invalidos"])
+        if cx.detector is not None:
+            col3.metric("Modelo", os.path.basename(MODELO), f"limiar {cx.detector.limiar:.2f}", delta_color="off")
+            col3.caption(s["faixa"])
         else:
-            st.button("Amostras: use 'Gravar amostras' na barra lateral", disabled=True,
-                      width="stretch")
-    st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}. "
-               f"O CSV de amostras é dividido em partes (_p01, _p02, ...) a cada {ROTACAO_MIN} min.")
+            col3.metric("Modelo", "desligado")
+            col3.caption(os.path.basename(MODELO) if os.path.exists(MODELO) else f"{MODELO} não encontrado")
+        if not tg.configurado():
+            col4.metric("Telegram", "não configurado")
+        elif not telegram_ativo:
+            col4.metric("Telegram", "desligado")
+        else:
+            col4.metric("Telegram", "ativo")
+        if s["tg_status"]:
+            t_ = s["tg_status"]
+            col4.caption(f"último envio ({t_['tipo']}) {t_['hora']:%H:%M:%S}: "
+                         + ("OK" if t_["ok"] else f"falhou — {t_['erro']}"))
 
-if auto:
-    time.sleep(intervalo)
-    st.rerun()
+        if s["erro"]:
+            st.error(f"Erro MQTT: {s['erro']}")
+
+        # métricas internas (uma linha de cards; valores por cinto quando houver vários)
+        def _por_cinto(d, fmt):
+            if not d:
+                return "—"
+            if len(d) == 1:
+                return fmt(next(iter(d.values())))
+            return " | ".join(f"{nome_cinto(k)}: {fmt(v)}" for k, v in sorted(d.items()))
+
+        prob_atual = {k: v[-1][1] for k, v in s["hist"].items() if v}
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
+        m1.metric("Amostras recebidas", f"{s['total']:,}".replace(",", "."))
+        m2.metric("Cintos ativos", len(s["melhores"]))
+        m3.metric("Prob. queda atual", _por_cinto(prob_atual, lambda v: f"{v:.1%}"))
+        m4.metric("Taxa (Hz)", _por_cinto(s["taxa"], lambda v: f"{v:.0f}"))
+        m5.metric("Amostras perdidas", _por_cinto(s["perdas"], lambda v: f"{100 * v:.1f}%"))
+        m6.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))
+
+        st.subheader("Status do sistema")
+        col_cinto, col_antenas = st.columns([1, 2])
+        ALT_CARD = 220                       # mesma altura para o card do cinto e o das antenas
+
+        with col_cinto:
+            cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
+            if cinto_ids:
+                for cinto in cinto_ids:
+                    m = s["melhores"].get(cinto)
+                    last = (m or {}).get("last") or {}
+                    with st.container(border=True, height=ALT_CARD):
+                        if m:
+                            st.markdown(f"**CINTO {nome_cinto(cinto)}** :green[● ONLINE]")
+                            st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
+                            st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz | "
+                                       f"Eletrodos: {'OK' if last.get('eletrodos_conectados') == 1 else 'soltos'}")
+                            st.caption(f"Última leitura há {m['idade']:.1f} s")
+                        else:
+                            st.markdown(f"**CINTO {nome_cinto(cinto)}** :red[● OFFLINE]")
+                            st.caption("Sem leitura nos últimos 10 s")
+            else:
+                with st.container(border=True, height=ALT_CARD):
+                    st.markdown("**CINTO —** :orange[● SEM CINTO]")
+                    st.caption("Nenhum cinto detectado")
+
+        with col_antenas:
+            ANTENAS = [1, 2, 3, 4]
+            status_antenas = {str(k): v for k, v in s["anchors"].items()}
+            # RSSI mais recente visto por cada antena (de qualquer cinto)
+            rssi_antena = {}
+            for linha in s["tabela"]:
+                a = str(linha["antena"])
+                if linha["RSSI atual"] is not None and (a not in rssi_antena or linha["idade (s)"] < rssi_antena[a][1]):
+                    rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"], linha["origem"])
+            with st.container(border=True, height=ALT_CARD):
+                cols = st.columns(len(ANTENAS))
+                for col, antena in zip(cols, ANTENAS):
+                    status = status_antenas.get(str(antena))
+                    if status == "online":
+                        badge, cor = "ONLINE", "green"
+                    elif status == "offline":
+                        badge, cor = "OFFLINE", "red"
+                    else:
+                        badge, cor = "SEM STATUS", "orange"
+                    r = rssi_antena.get(str(antena))
+                    modo = ("GATT" if r[2] == "GATT" else "Advertising") if r and r[1] <= 10 and status != "offline" else "sem dados recentes"
+                    with col:
+                        st.markdown(f"**Anchor {antena}**")
+                        st.markdown(f":{cor}[● {badge}]")
+                        st.caption(f"Modo: {modo}")
+                        st.metric("RSSI", f"{r[0]} dBm" if r else "—",
+                                  f"há {r[1]:.0f} s" if r else None, delta_color="off",
+                                  label_visibility="collapsed")
+
+        st.subheader("Gráficos de sinais")
+        if s["sinal"]:
+            JANELA_S = 5
+            N_TICKS = 5
+            # instante da amostra mais recente = borda direita (0 s); eixo fixo de -5 s a 0 s
+            t_ref = max(pts[-1][0] for pts in s["sinal"].values() if pts)
+            # 5 marcas fixas igualmente espaçadas na janela (-5, -3.75, -2.5, -1.25, 0 s)
+            ticks = [round(-JANELA_S + i * JANELA_S / (N_TICKS - 1), 4) for i in range(N_TICKS)]
+            rotulos_t = {k: (t_ref + pd.Timedelta(seconds=k)).strftime("%H:%M:%S") for k in ticks}
+            # chaves no formato que toString() do Vega produz ("-5", "-3.75", "0")
+            mapa_t = ", ".join(f"'{k:g}': '{v}'" for k, v in rotulos_t.items())
+            label_expr_t = "{" + mapa_t + "}[toString(datum.value)]"
+
+            def grafico_sinal(idx, titulo_y):
+                linhas = []
+                for c, pts in s["sinal"].items():
+                    nome = nome_cinto(c)
+                    for p in pts:
+                        if len(p) <= idx:
+                            continue
+                        dt_s = (p[0] - t_ref).total_seconds()
+                        if dt_s < -JANELA_S:
+                            continue
+                        linhas.append({"t": dt_s, "valor": p[idx], "cinto": nome,
+                                       "horario": p[0].strftime("%H:%M:%S.%f")[:-3]})
+                df = pd.DataFrame(linhas)
+                return alt.Chart(df).mark_line().encode(
+                    x=alt.X("t:Q", title="Horário",
+                            scale=alt.Scale(domain=[-JANELA_S, 0], nice=False),
+                            axis=alt.Axis(values=ticks, labelExpr=label_expr_t,
+                                          labelAngle=-45, grid=True)),
+                    y=alt.Y("valor:Q", title=titulo_y),
+                    color=alt.Color("cinto:N", title="Legenda"),
+                    tooltip=[alt.Tooltip("horario:N", title="Horário"),
+                             alt.Tooltip("cinto:N", title="Cinto"),
+                             alt.Tooltip("valor:Q", title=titulo_y, format=".2f")],
+                ).properties(height=220)
+
+            g1, g2 = st.columns(2)
+            with g1:
+                st.caption("Acelerômetro |a| - Últimos 5s")
+                st.altair_chart(grafico_sinal(1, "|a|"), width="stretch")
+            with g2:
+                st.caption("Giroscópio |ω| (°/s) — Últimos 5s")
+                st.altair_chart(grafico_sinal(2, "|ω| (°/s)"), width="stretch")
+        else:
+            st.caption("Sem dados de sinal para plotar.")
+
+        col_localizacao, col_ecg = st.columns(2)
+        with col_localizacao:
+            st.subheader("Localização indoor")
+            L = loc.LADO_M
+            anc_df = pd.DataFrame([{"x": x, "y": y, "rotulo": f"Anchor {i}"} for i, (x, y) in loc.ANCHORS.items()])
+            quad_df = pd.DataFrame([
+                {"x": L / 4, "y": 3 * L / 4, "q": "SE"}, {"x": 3 * L / 4, "y": 3 * L / 4, "q": "SD"},
+                {"x": L / 4, "y": L / 4, "q": "IE"}, {"x": 3 * L / 4, "y": L / 4, "q": "ID"}])
+            pos_rows = []
+            for c, p in s["posicoes"].items():
+                if p:
+                    pos_rows.append({"x": p["x"], "y": p["y"], "rotulo": nome_cinto(c), "quadrante": p["nome"],
+                                     "anchors": p["n_anchors"], "erro": p["erro_m"],
+                                     "confianca": p["confianca"], "idade": p["idade_s"]})
+            quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
+                                               if p and p["confianca"] == "boa"])
+            esc_x = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
+            esc_y = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
+            quad_df["x1"] = quad_df["x"] - L / 4; quad_df["x2"] = quad_df["x"] + L / 4
+            quad_df["y1"] = quad_df["y"] - L / 4; quad_df["y2"] = quad_df["y"] + L / 4
+            fundo = alt.Chart(quad_df).mark_rect(stroke="#888", strokeWidth=1).encode(
+                x=alt.X("x1:Q", scale=esc_x, title="x (m)"), x2="x2:Q",
+                y=alt.Y("y1:Q", scale=esc_y, title="y (m)"), y2="y2:Q",
+                color=alt.condition("datum.ativo", alt.value("#2e7d32"), alt.value("#2b2b2b")),
+                tooltip=[alt.Tooltip("q:N", title="Quadrante")])
+            rot_q = alt.Chart(quad_df).mark_text(color="#bbb", fontSize=14).encode(x="x:Q", y="y:Q", text="q:N")
+            anc_pts = alt.Chart(anc_df).mark_point(shape="triangle-up", size=250, filled=True, color="#f58518").encode(
+                x="x:Q", y="y:Q", tooltip=["rotulo:N"])
+            anc_txt = alt.Chart(anc_df).mark_text(dy=-16, color="#f58518").encode(x="x:Q", y="y:Q", text="rotulo:N")
+            mapa = fundo + rot_q + anc_pts + anc_txt
+            if pos_rows:
+                pos_df = pd.DataFrame(pos_rows)
+                mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
+                    x="x:Q", y="y:Q",
+                    color=alt.Color("confianca:N", title="Confiança",
+                                    scale=alt.Scale(domain=["boa", "baixa"], range=["#4c78a8", "#e6a23c"])),
+                    tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
+                             alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
+                             alt.Tooltip("confianca:N", title="Confiança"),
+                             alt.Tooltip("idade:Q", title="Idade da posição (s)", format=".1f"),
+                             alt.Tooltip("anchors:Q", title="Anchors usadas")])
+                mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
+            st.altair_chart(mapa.properties(height=380), width="stretch")
+            for c, p in sorted(s["posicoes"].items()):
+                if not p:
+                    st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas")
+                    continue
+                with st.container(border=True):
+                    st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
+                    if p["confianca"] == "baixa":
+                        st.warning(f"Baixa confiança: {p['motivo']}")
+                        st.caption(f"Última posição válida há {p['idade_s']:.1f} s; valores abaixo são dessa posição.")
+                    else:
+                        st.caption("Confiança: boa")
+                    st.caption("RSSI suavizado: " + ", ".join(f"A{a} {r:.0f} dBm" for a, r in sorted(p["rssi"].items())))
+                    st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
+                    if p["erro_m"] is not None:
+                        st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
+            st.caption(f"Lado {L:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
+        with col_ecg:
+            st.subheader("ECG bruto (AD8232)")
+            if s["sinal"]:
+                st.altair_chart(grafico_sinal(3, "ADC (0–4095)").properties(height=380), width="stretch")
+            else:
+                st.caption("Sem dados de ECG para plotar.")
+
+        with st.expander("Tabela RSSI por cinto × antena"):
+            if s["tabela"]:
+                df_rssi = pd.DataFrame(s["tabela"]).rename(columns={"idade (s)": "Janela de Conexão (s)"})
+                st.dataframe(df_rssi, width="stretch", hide_index=True)
+            else:
+                st.caption("Sem tabela RSSI disponível.")
+
+        with st.expander("Histórico de quedas"):
+            if s["quedas"]:
+                st.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
+            else:
+                st.caption("Nenhuma queda registrada.")
+
+        st.subheader("Exportação de dados")
+        d1, d2, d3 = st.columns(3)
+        tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+        with d1:
+            st.download_button(f"Janelas analisadas ({s['n_janelas']})", cx.janelas_csv(),
+                               file_name=f"janelas_{tag}.csv", mime="text/csv",
+                               disabled=not s["n_janelas"], width="stretch")
+        with d2:
+            cols_q = ["data", "hora", "cinto", "antena", "quadrante", "prob", "amax (g)", "tilt (graus)"]
+            st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
+                               file_name=f"quedas_{tag}.csv", mime="text/csv",
+                               disabled=not s["quedas"], width="stretch")
+        with d3:
+            g = cx.status_gravacao()
+            if g["ativa"]:
+                st.button("Amostras: pare a gravação para baixar", disabled=True, width="stretch")
+            elif g["ultima"]:
+                partes = [p for p in g["ultima"]["partes"] if os.path.exists(p["caminho"])]
+                if not partes:
+                    st.button("Amostras: arquivos da última gravação não encontrados", disabled=True, width="stretch")
+                for i, p in enumerate(partes, 1):
+                    st_ = os.stat(p["caminho"])
+                    rotulo = (f"Amostras da última gravação ({p['n']})" if len(partes) == 1
+                              else f"Amostras — parte {i}/{len(partes)} ({p['n']})")
+                    st.download_button(rotulo, _ler_arquivo(p["caminho"], st_.st_mtime, st_.st_size),
+                                       file_name=os.path.basename(p["caminho"]), mime="text/csv",
+                                       width="stretch", key=f"dl_parte_{i}")
+            else:
+                st.button("Amostras: use 'Gravar amostras' na barra lateral", disabled=True,
+                          width="stretch")
+        st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}. "
+                   f"O CSV de amostras é dividido em partes (_p01, _p02, ...) a cada {ROTACAO_MIN} min.")
+
+
+atualizar_painel()
