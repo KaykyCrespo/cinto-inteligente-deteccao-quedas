@@ -257,7 +257,8 @@ class Conexao:
                 self.quedas.appendleft({
                     "data": agora.strftime("%Y-%m-%d"),
                     "hora": agora.strftime("%H:%M:%S"), "cinto": cinto, "antena": j["anchor"],
-                    "prob": round(j["prob"], 2), "amax (g)": j["features"]["amax"],
+                    "prob": round(j["prob"], 4), "amax (g)": j["features"]["amax"],
+                    "gmax": j["features"]["gmax"],
                     "tilt (graus)": j["features"]["tilt"],
                 })
                 self._evento(f"QUEDA cinto {cinto} prob {j['prob']:.1%} perto da antena {j['anchor']}")
@@ -533,8 +534,9 @@ with monitor_tab:
                         axis=alt.Axis(values=list(range(-(N_PROB - 1), 1)), labelExpr=label_expr,
                                       labelAngle=-45, grid=True)),
                 y=alt.Y("probabilidade:Q", title="Probabilidade",
-                    scale=alt.Scale(domain=[0, 1], nice=False), axis=alt.Axis(format=".0%")),
-                color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
+                    scale=alt.Scale(domain=[0, 1], nice=False),
+                    axis=alt.Axis(format=".0%", values=[i / 10 for i in range(11)])),
+                color=alt.Color("cinto:N", title=None, scale=escala_cor),
                 tooltip=[
                     alt.Tooltip("horario_label:N", title="Horário"),
                     alt.Tooltip("data_label:N", title="Data"),
@@ -546,12 +548,12 @@ with monitor_tab:
             if cx.detector is not None:
                 limiar_df = pd.DataFrame({"y": [cx.detector.limiar], "cinto": [rotulo_limiar]})
                 chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
-                    y="y:Q", color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
+                    y="y:Q", color=alt.Color("cinto:N", title=None, scale=escala_cor),
                     tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
-            col_probabilidade.altair_chart(
-                chart.properties(height=260).configure_legend(
-                    orient="top", direction="horizontal", titlePadding=12, offset=12),
-                width="stretch")
+            chart_spec = chart.properties(height=260).configure_legend(
+                orient="top", direction="horizontal", offset=12).to_dict()
+            chart_spec["config"]["legend"]["layout"] = {"top": {"anchor": "middle"}}
+            col_probabilidade.vega_lite_chart(chart_spec, width="stretch")
         else:
             col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
     else:
@@ -560,7 +562,13 @@ with monitor_tab:
     # -------- quedas detectadas --------
     col_quedas.subheader("Quedas detectadas")
     if s["quedas"]:
-        col_quedas.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
+        df_quedas = pd.DataFrame(s["quedas"]).reindex(
+            columns=["data", "hora", "cinto", "antena", "prob", "amax (g)", "gmax", "quadrante"])
+        df_quedas["data"] = pd.to_datetime(df_quedas["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
+        df_quedas["prob"] = df_quedas["prob"].map(lambda valor: f"{valor:.1%}")
+        df_quedas = df_quedas.rename(columns={
+            "amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)", "quadrante": "Quadrate"})
+        col_quedas.dataframe(df_quedas, width="stretch", hide_index=True)
     else:
         col_quedas.caption("Nenhuma queda detectada.")
 
