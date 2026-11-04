@@ -413,7 +413,12 @@ def nome_cinto(cinto):
 st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
 
 with st.sidebar:
-    st.image(os.path.join(os.path.dirname(__file__), "assets", "logo_oqpnb.svg"), width=180)
+    with open(os.path.join(os.path.dirname(__file__), "assets", "logo_oqpnb.svg"), encoding="utf-8") as arquivo_logo:
+        st.html(
+            '<div style="display:flex;align-items:center;gap:12px">'
+            f'<div style="flex:0 0 112px">{arquivo_logo.read()}</div>'
+            '<div style="font-size:1rem;font-weight:600;line-height:1.3">'
+            'Protótipo Cinto Inteligente</div></div>')
     st.header("Alertas de queda")
     tg_ok = tg.configurado()
     h = _holder()
@@ -430,7 +435,7 @@ with st.sidebar:
     intervalo = st.slider("Intervalo (s)", 0.5, 5.0, 1.0, 0.5)
     st.divider()
     st.header("Gravação de amostras")
-    gravacao_box = st.container()     # preenchido depois que a conexão existir
+    gravacao_box = st.empty()
     st.divider()
     params = (BROKER, PORT, True, limiar or None)
     if st.button("Reconectar", width="stretch"):
@@ -448,7 +453,7 @@ with telegram_box:
     st.button("Testar envio", width="stretch", disabled=not tg_ok,
               key="btn_tg_teste", on_click=cx.testar_telegram)
 
-with gravacao_box:
+with gravacao_box.container():
     g = cx.status_gravacao()
     # on_click: o callback roda antes do redesenho, então o clique não se perde no loop de rerun
     if g["ativa"]:
