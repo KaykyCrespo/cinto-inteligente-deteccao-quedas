@@ -587,13 +587,17 @@ def atualizar_painel():
                         else:
                             c3.caption("Indisponível")
                         c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
-                        c4.markdown("Antena mais perto")
-                        c4.markdown(
-                            '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
-                            f'<span style="font-size:2rem">{m["antena"]}</span>'
-                            f'<span style="color:gray;background:rgba(128,128,128,0.18);border-radius:8px;'
-                            f'padding:2px 8px;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
-                            unsafe_allow_html=True)
+                        c4.markdown("Status Telegram")
+                        if s["telegram_ativo"] and tg.configurado():
+                            c4.markdown(
+                                '<span style="display:inline-block;color:#2eae67;'
+                                'background:rgba(46,174,103,0.18);border-radius:8px;padding:2px 8px">'
+                                'Ativado Bot</span>', unsafe_allow_html=True)
+                        else:
+                            c4.markdown(
+                                '<span style="display:inline-block;color:#e6b422;'
+                                'background:rgba(230,180,34,0.18);border-radius:8px;padding:2px 8px">'
+                                'Desativado Bot</span>', unsafe_allow_html=True)
                         pos = s["posicoes"].get(cinto)
                         c1.metric("Quadrante", pos["quadrante"] if pos else "—",
                                  pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
@@ -758,7 +762,7 @@ def atualizar_painel():
                 for cinto in cinto_ids:
                     m = s["melhores"].get(cinto)
                     last = (m or {}).get("last") or {}
-                    with st.container(border=False, height=ALT_CARD):
+                    with st.container(border=True, height=ALT_CARD):
                         if m:
                             st.markdown(f"**CINTO {nome_cinto(cinto)}** :green[● ONLINE]")
                             st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
@@ -779,7 +783,7 @@ def atualizar_painel():
                             st.markdown(f"**CINTO {nome_cinto(cinto)}** :red[● OFFLINE]")
                             st.caption("Sem leitura nos últimos 10 s")
             else:
-                with st.container(border=False, height=ALT_CARD):
+                with st.container(border=True, height=ALT_CARD):
                     st.markdown("**CINTO —** :orange[● SEM CINTO]")
                     st.caption("Nenhum cinto detectado")
 
@@ -794,7 +798,7 @@ def atualizar_painel():
                 a = str(linha["antena"])
                 if linha["RSSI atual"] is not None and (a not in rssi_antena or linha["idade (s)"] < rssi_antena[a][1]):
                     rssi_antena[a] = (linha["RSSI atual"], linha["idade (s)"], linha["origem"])
-            with st.container(border=False, height=ALT_CARD):
+            with st.container(border=True, height=ALT_CARD):
                 cols = st.columns(len(ANTENAS))
                 for col, antena in zip(cols, ANTENAS):
                     status = status_antenas.get(str(antena))
@@ -816,7 +820,7 @@ def atualizar_painel():
                                   f"há {r[1]:.0f} s" if r else None, delta_color="off",
                                   label_visibility="collapsed")
 
-        st.markdown('<h3 style="text-align:center">Gráficos de SINAIS</h3>', unsafe_allow_html=True)
+        st.subheader("Gráficos de Sinais")
         if s["sinal"]:
             JANELA_S = 5
             N_TICKS = 5
@@ -847,7 +851,8 @@ def atualizar_painel():
                             scale=alt.Scale(domain=[-JANELA_S, 0], nice=False),
                             axis=alt.Axis(values=ticks, labelExpr=label_expr_t,
                                           labelAngle=-45, grid=True)),
-                    y=alt.Y("valor:Q", title=titulo_y),
+                        y=alt.Y("valor:Q", title=titulo_y,
+                            axis=alt.Axis(tickCount=5, labelOverlap=False)),
                     color=alt.Color("cinto:N", title=None,
                                     legend=alt.Legend(title=None, orient="top", direction="horizontal")),
                     tooltip=[alt.Tooltip("horario:N", title="Horário"),
