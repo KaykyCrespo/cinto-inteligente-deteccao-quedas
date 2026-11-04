@@ -440,9 +440,8 @@ with st.sidebar:
     st.divider()
     st.header("Gravação de amostras")
     gravacao_box = st.empty()
-    st.divider()
     params = (BROKER, PORT, True, limiar or None)
-    if st.button("Reconectar", width="stretch"):
+    if st.button("Reconectar", width="stretch", type="primary"):
         h = _holder()
         if "cx" in h:
             h["cx"].fechar()
@@ -473,14 +472,6 @@ s = cx.snapshot()
 monitor_tab, detalhes_tab = st.tabs(["Monitoramento", "Detalhes técnicos"])
 
 with monitor_tab:
-    if s["faixa"]:
-        st.caption(f"Cinto detectado: {s['faixa']}")
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
-    c2.metric("Amostras recebidas", s["total"])
-    c3.metric("Cintos ativos", len(s["melhores"]))
-    c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
     if s["erro"]:
         st.error(f"Erro MQTT: {s['erro']}")
     if s["invalidos"]:
@@ -510,6 +501,13 @@ with monitor_tab:
                 with st.container(border=True):
                     nome_exibicao = nome_cinto(cinto)
                     st.markdown(f"### CINTO {nome_exibicao}")
+                    if s["faixa"]:
+                        st.caption(f"Cinto detectado: {s['faixa']}")
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
+                    c2.metric("Amostras recebidas", s["total"])
+                    c3.metric("Cintos ativos", len(s["melhores"]))
+                    c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
                     pos = s["posicoes"].get(cinto)
                     a, b = st.columns(2)
                     a.metric("Quadrante", pos["quadrante"] if pos else "—",
