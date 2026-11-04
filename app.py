@@ -715,18 +715,24 @@ def atualizar_painel():
         col2.metric("Amostras recebidas", f"{s['total']:,}".replace(",", "."))
         col2.metric("Taxa", _por_cinto(s["taxa"], lambda valor: f"{valor:.0f} Hz"))
         col_invalidos.metric("Pacotes inválidos", s["invalidos"])
+        col_invalidos.metric("Amostras perdidas", _por_cinto(s["perdas"], lambda v: f"{100 * v:.1f}%"))
         if cx.detector is not None:
-            col3.metric("Modelo", os.path.basename(MODELO), f"limiar {cx.detector.limiar:.2f}", delta_color="off")
-            col3.caption(s["faixa"])
+            col3.markdown("Modelo")
+            col3.markdown(
+                '<div style="font-size:1rem;line-height:1.5;overflow-wrap:anywhere">'
+                f'{escape(os.path.basename(MODELO))}</div>', unsafe_allow_html=True)
+            col3.caption(f"Limiar: {cx.detector.limiar:.2f}")
         else:
             col3.metric("Modelo", "desligado")
             col3.caption(os.path.basename(MODELO) if os.path.exists(MODELO) else f"{MODELO} não encontrado")
+        col3.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))
         if not tg.configurado():
             col4.metric("Telegram", "não configurado")
         elif not telegram_ativo:
             col4.metric("Telegram", "desligado")
         else:
             col4.metric("Telegram", "ativo")
+        col4.metric("Quantidade de quedas", f"{s['total_quedas']:,}".replace(",", "."))
         if s["tg_status"]:
             t_ = s["tg_status"]
             col4.caption(f"último envio ({t_['tipo']}) {t_['hora']:%H:%M:%S}: "
@@ -734,11 +740,6 @@ def atualizar_painel():
 
         if s["erro"]:
             st.error(f"Erro MQTT: {s['erro']}")
-
-        m_quedas, m5, m6 = st.columns(3)
-        m_quedas.metric("Quantidade de quedas", f"{s['total_quedas']:,}".replace(",", "."))
-        m5.metric("Amostras perdidas", _por_cinto(s["perdas"], lambda v: f"{100 * v:.1f}%"))
-        m6.metric("Janelas reiniciadas", _por_cinto(s["resets"], lambda v: f"{v}"))
 
         st.subheader("Status do sistema")
         col_cinto, col_antenas = st.columns([1, 2])
@@ -754,8 +755,19 @@ def atualizar_painel():
                         if m:
                             st.markdown(f"**CINTO {nome_cinto(cinto)}** :green[● ONLINE]")
                             st.caption(f"Antena mais perto: {m['antena']} ({m['rssi']:.0f} dBm)")
-                            st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz | "
-                                       f"Eletrodos: {'OK' if last.get('eletrodos_conectados') == 1 else 'soltos'}")
+                            st.caption(f"Taxa: {s['taxa'].get(cinto, 0):.0f} Hz")
+                            if last.get("eletrodos_conectados") == 0:
+                                st.markdown(
+                                    'Status eletrodo: <span style="color:#e6b422;'
+                                    'background:rgba(230,180,34,0.18);border-radius:8px;padding:2px 8px">'
+                                    'SOLTO</span>', unsafe_allow_html=True)
+                            elif last.get("eletrodos_conectados") == 1:
+                                st.markdown(
+                                    'Status eletrodo: <span style="color:#2eae67;'
+                                    'background:rgba(46,174,103,0.18);border-radius:8px;padding:2px 8px">'
+                                    'CONECTADO</span>', unsafe_allow_html=True)
+                            else:
+                                st.markdown("Status eletrodo: Indisponível")
                             st.caption(f"Última leitura há {m['idade']:.1f} s")
                         else:
                             st.markdown(f"**CINTO {nome_cinto(cinto)}** :red[● OFFLINE]")
