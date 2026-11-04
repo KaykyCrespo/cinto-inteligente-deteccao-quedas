@@ -547,53 +547,53 @@ def atualizar_painel():
                 with cols[i % len(cols)]:
                     with st.container(border=True):
                         nome_exibicao = nome_cinto(cinto)
-                        cabecalho, status_cinto = st.columns([3, 1])
+                        cabecalho, status_cinto = st.columns([3, 2])
                         with cabecalho:
                             st.markdown(f"### CINTO {nome_exibicao}")
                             if s["faixa"]:
-                                st.caption(f"Cinto detectado: {s['faixa']}")
+                                st.caption(f"Cinto configurado: {s['faixa']}")
                         with status_cinto:
-                            agora_alerta = datetime.now()
-                            ultima_queda = queda_em_alerta(s["quedas"], cinto, tempo_reset_alerta, agora_alerta)
-                            if ultima_queda:
-                                st.markdown(aviso_queda(ultima_queda, cinto, tempo_reset_alerta, agora_alerta),
-                                            unsafe_allow_html=True)
-                            else:
-                                st.markdown(
-                                    '<div style="display:flex;justify-content:flex-end">'
-                                    '<span style="color:#2eae67;background:rgba(46,174,103,0.16);'
-                                    'border-radius:8px;padding:6px 10px;font-size:0.875rem">'
-                                    'STATUS: NORMAL</span></div>', unsafe_allow_html=True)
-                        with cabecalho:
-                            c1, c2, c3, c4 = st.columns(4)
-                            c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
-                            c2.metric("Amostras recebidas", f"{s['total']:,}".replace(",", "."))
-                            c2.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
-                            c3.metric("Cintos ativos", len(s["melhores"]))
-                            c3.caption("Status Eletrodo")
-                            if last.get("eletrodos_conectados") == 0:
-                                c3.markdown(
-                                    '<span style="display:inline-block;color:#e6b422;'
-                                    'background:rgba(230,180,34,0.18);border-radius:8px;padding:2px 8px">'
-                                    'SOLTO</span>', unsafe_allow_html=True)
-                            elif last.get("eletrodos_conectados") == 1:
-                                c3.markdown(
-                                    '<span style="display:inline-block;color:#2eae67;'
-                                    'background:rgba(46,174,103,0.18);border-radius:8px;padding:2px 8px">'
-                                    'CONECTADO</span>', unsafe_allow_html=True)
-                            else:
-                                c3.caption("Indisponível")
-                            c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
-                            c4.caption("Antena mais perto")
-                            c4.markdown(
-                                '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
-                                f'<span style="font-size:2rem">{m["antena"]}</span>'
-                                f'<span style="color:gray;background:rgba(128,128,128,0.18);border-radius:8px;'
-                                f'padding:2px 8px;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
-                                unsafe_allow_html=True)
-                            pos = s["posicoes"].get(cinto)
-                            c1.metric("Quadrante", pos["quadrante"] if pos else "—",
-                                     pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
+                            with st.container(height=220, border=False):
+                                agora_alerta = datetime.now()
+                                ultima_queda = queda_em_alerta(s["quedas"], cinto, tempo_reset_alerta, agora_alerta)
+                                if ultima_queda:
+                                    st.markdown(aviso_queda(ultima_queda, cinto, tempo_reset_alerta, agora_alerta),
+                                                unsafe_allow_html=True)
+                                else:
+                                    st.markdown(
+                                        '<div style="display:flex;justify-content:flex-end">'
+                                        '<span style="color:#2eae67;background:rgba(46,174,103,0.16);'
+                                        'border-radius:8px;padding:6px 10px;font-size:0.875rem">'
+                                        'STATUS: NORMAL</span></div>', unsafe_allow_html=True)
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Broker", "Conectado" if s["conectado"] else "Desconectado")
+                        c2.metric("Amostras recebidas", f"{s['total']:,}".replace(",", "."))
+                        c2.metric("Taxa", f"{s['taxa'].get(cinto, 0):.0f} Hz")
+                        c3.metric("Cintos ativos", len(s["melhores"]))
+                        c3.markdown("Status Eletrodo")
+                        if last.get("eletrodos_conectados") == 0:
+                            c3.markdown(
+                                '<span style="display:inline-block;color:#e6b422;'
+                                'background:rgba(230,180,34,0.18);border-radius:8px;padding:2px 8px">'
+                                'SOLTO</span>', unsafe_allow_html=True)
+                        elif last.get("eletrodos_conectados") == 1:
+                            c3.markdown(
+                                '<span style="display:inline-block;color:#2eae67;'
+                                'background:rgba(46,174,103,0.18);border-radius:8px;padding:2px 8px">'
+                                'CONECTADO</span>', unsafe_allow_html=True)
+                        else:
+                            c3.caption("Indisponível")
+                        c4.metric("Antenas online", sum(1 for v in s["anchors"].values() if v == "online"))
+                        c4.markdown("Antena mais perto")
+                        c4.markdown(
+                            '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+                            f'<span style="font-size:2rem">{m["antena"]}</span>'
+                            f'<span style="color:gray;background:rgba(128,128,128,0.18);border-radius:8px;'
+                            f'padding:2px 8px;white-space:nowrap">{m["rssi"]:.0f} dBm</span></div>',
+                            unsafe_allow_html=True)
+                        pos = s["posicoes"].get(cinto)
+                        c1.metric("Quadrante", pos["quadrante"] if pos else "—",
+                                 pos["nome"] if pos else "aguardando 3 antenas consistentes", delta_color="off")
                         progresso_queda = st.empty()
                         if prob is not None:
                             progresso_queda.progress(min(max(prob, 0.0), 1.0), text=f"Prob. queda: {prob:.1%}")
@@ -687,6 +687,10 @@ def atualizar_painel():
                 columns=["data", "hora", "cinto", "antena", "prob", "amax (g)", "gmax", "quadrante"])
             df_quedas["data"] = pd.to_datetime(df_quedas["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
             df_quedas["prob"] = df_quedas["prob"].map(lambda valor: f"{valor:.1%}")
+            df_quedas["quadrante"] = (
+                df_quedas["quadrante"].fillna("Indisponível")
+                .str.removesuffix(" (última posição, baixa confiança)")
+                .replace({"localização indisponível": "Indisponível", "": "Indisponível"}))
             df_quedas = df_quedas.rename(columns={
                 "data": "Data", "hora": "Hora", "cinto": "Cinto", "antena": "Antena", "prob": "Prob",
                 "amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)", "quadrante": "Quadrate"})
