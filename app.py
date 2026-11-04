@@ -447,11 +447,12 @@ with monitor_tab:
         st.warning(f"{s['invalidos']} pacotes com formato inválido (veja os eventos abaixo).")
 
     # -------- alertas de queda --------
+    alerta_queda = st.empty()
     if s["quedas"]:
         q = s["quedas"][0]
         onde = f" — quadrante {q['quadrante']}" if q.get("quadrante") else ""
-        st.error(f"**QUEDA DETECTADA** — cinto {nome_cinto(q['cinto'])} às {q['hora']} "
-                 f"(prob {q['prob']:.1%}) perto da antena {q['antena']}{onde}", icon="🚨")
+        alerta_queda.error(f"**QUEDA DETECTADA** — cinto {nome_cinto(q['cinto'])} às {q['hora']} "
+                           f"(prob {q['prob']:.1%}) perto da antena {q['antena']}{onde}", icon="🚨")
 
     # -------- cartões por cinto --------
     if not s["melhores"]:
@@ -547,7 +548,10 @@ with monitor_tab:
                 chart += alt.Chart(limiar_df).mark_rule(strokeDash=[6, 4], strokeWidth=2).encode(
                     y="y:Q", color=alt.Color("cinto:N", title="Legenda", scale=escala_cor),
                     tooltip=[alt.Tooltip("y:Q", title="Limiar", format=".1%")])
-            col_probabilidade.altair_chart(chart.properties(height=260).configure_legend(titlePadding=12), width="stretch")
+            col_probabilidade.altair_chart(
+                chart.properties(height=260).configure_legend(
+                    orient="top", direction="horizontal", titlePadding=12, offset=12),
+                width="stretch")
         else:
             col_probabilidade.caption("Nenhuma probabilidade de queda registrada.")
     else:
