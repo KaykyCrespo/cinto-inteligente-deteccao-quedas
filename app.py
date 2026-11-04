@@ -754,7 +754,7 @@ def atualizar_painel():
             status_sistema.error(f"Erro MQTT: {s['erro']}")
 
         col_cinto, col_antenas = status_sistema.columns([1, 2])
-        ALT_CARD = 220                       # mesma altura para o card do cinto e o das antenas
+        ALT_CARD = 320                       # mesma altura para o card do cinto e o das antenas
 
         with col_cinto:
             cinto_ids = sorted(set(s["melhores"].keys()) | set(s["hist"].keys()) | set(s["sinal"].keys()) | set(s["taxa"].keys()))
@@ -819,6 +819,22 @@ def atualizar_painel():
                         st.metric("RSSI", f"{r[0]} dBm" if r else "—",
                                   f"há {r[1]:.0f} s" if r else None, delta_color="off",
                                   label_visibility="collapsed")
+
+        with st.expander("Tabela RSSI por Cinto × Antena"):
+            if s["tabela"]:
+                df_rssi = pd.DataFrame(s["tabela"]).rename(columns={
+                    "idade (s)": "Janela de Conexão (s)", "RSSI atual": "RSSI Atual", "RSSI médio": "RSSI Médio"})
+                df_rssi = df_rssi.rename(columns=lambda coluna: coluna[:1].upper() + coluna[1:])
+                st.dataframe(df_rssi, width="stretch", hide_index=True)
+            else:
+                st.caption("Sem tabela RSSI disponível.")
+
+        with st.expander("Histórico de Quedas"):
+            if s["quedas"]:
+                df_historico = pd.DataFrame(s["quedas"]).rename(columns=lambda coluna: coluna[:1].upper() + coluna[1:])
+                st.dataframe(df_historico, width="stretch", hide_index=True)
+            else:
+                st.caption("Nenhuma queda registrada.")
 
         st.subheader("Gráficos de Sinais")
         if s["sinal"]:
@@ -936,19 +952,6 @@ def atualizar_painel():
             else:
                 st.markdown('<h3 style="text-align:center">ECG bruto (AD8232)</h3>', unsafe_allow_html=True)
                 st.caption("Sem dados de ECG para plotar.")
-
-        with st.expander("Tabela RSSI por cinto × antena"):
-            if s["tabela"]:
-                df_rssi = pd.DataFrame(s["tabela"]).rename(columns={"idade (s)": "Janela de Conexão (s)"})
-                st.dataframe(df_rssi, width="stretch", hide_index=True)
-            else:
-                st.caption("Sem tabela RSSI disponível.")
-
-        with st.expander("Histórico de quedas"):
-            if s["quedas"]:
-                st.dataframe(pd.DataFrame(s["quedas"]), width="stretch", hide_index=True)
-            else:
-                st.caption("Nenhuma queda registrada.")
 
         st.subheader("Exportação de dados")
         d1, d2, d3 = st.columns(3)
