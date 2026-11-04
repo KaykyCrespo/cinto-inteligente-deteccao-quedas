@@ -833,7 +833,7 @@ def atualizar_painel():
             mapa_t = ", ".join(f"'{k:g}': '{v}'" for k, v in rotulos_t.items())
             label_expr_t = "{" + mapa_t + "}[toString(datum.value)]"
 
-            def grafico_sinal(idx, titulo_y, titulo, altura=220):
+            def grafico_sinal(idx, titulo_y, titulo, altura=360):
                 linhas = []
                 for c, pts in s["sinal"].items():
                     nome = nome_cinto(c)
