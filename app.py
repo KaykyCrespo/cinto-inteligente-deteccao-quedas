@@ -490,68 +490,6 @@ with monitor_tab:
                     else:
                         st.caption(f"Última leitura há {m['idade']:.1f}s")
 
-    # -------- mapa de localização --------
-    st.subheader("Localização (quadrante)")
-    L = loc.LADO_M
-    anc_df = pd.DataFrame([{"x": x, "y": y, "rotulo": f"Anchor {i}"} for i, (x, y) in loc.ANCHORS.items()])
-    quad_df = pd.DataFrame([
-        {"x": L / 4, "y": 3 * L / 4, "q": "SE"}, {"x": 3 * L / 4, "y": 3 * L / 4, "q": "SD"},
-        {"x": L / 4, "y": L / 4, "q": "IE"}, {"x": 3 * L / 4, "y": L / 4, "q": "ID"}])
-    pos_rows = []
-    for c, p in s["posicoes"].items():
-        if p:
-            pos_rows.append({"x": p["x"], "y": p["y"], "rotulo": nome_cinto(c), "quadrante": p["nome"],
-                             "anchors": p["n_anchors"], "erro": p["erro_m"],
-                             "confianca": p["confianca"], "idade": p["idade_s"]})
-    quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
-                                       if p and p["confianca"] == "boa"])
-    esc_x = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
-    esc_y = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
-    quad_df["x1"] = quad_df["x"] - L / 4; quad_df["x2"] = quad_df["x"] + L / 4
-    quad_df["y1"] = quad_df["y"] - L / 4; quad_df["y2"] = quad_df["y"] + L / 4
-    fundo = alt.Chart(quad_df).mark_rect(stroke="#888", strokeWidth=1).encode(
-        x=alt.X("x1:Q", scale=esc_x, title="x (m)"), x2="x2:Q",
-        y=alt.Y("y1:Q", scale=esc_y, title="y (m)"), y2="y2:Q",
-        color=alt.condition("datum.ativo", alt.value("#2e7d32"), alt.value("#2b2b2b")),
-        tooltip=[alt.Tooltip("q:N", title="Quadrante")])
-    rot_q = alt.Chart(quad_df).mark_text(color="#bbb", fontSize=14).encode(x="x:Q", y="y:Q", text="q:N")
-    anc_pts = alt.Chart(anc_df).mark_point(shape="triangle-up", size=250, filled=True, color="#f58518").encode(
-        x="x:Q", y="y:Q", tooltip=["rotulo:N"])
-    anc_txt = alt.Chart(anc_df).mark_text(dy=-16, color="#f58518").encode(x="x:Q", y="y:Q", text="rotulo:N")
-    mapa = fundo + rot_q + anc_pts + anc_txt
-    if pos_rows:
-        pos_df = pd.DataFrame(pos_rows)
-        mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
-            x="x:Q", y="y:Q",
-            color=alt.Color("confianca:N", title="Confiança",
-                            scale=alt.Scale(domain=["boa", "baixa"], range=["#4c78a8", "#e6a23c"])),
-            tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
-                     alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
-                     alt.Tooltip("confianca:N", title="Confiança"),
-                     alt.Tooltip("idade:Q", title="Idade da posição (s)", format=".1f"),
-                     alt.Tooltip("anchors:Q", title="Anchors usadas")])
-        mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
-    m1, m2 = st.columns([2, 1])
-    with m1:
-        st.altair_chart(mapa.properties(height=380, width=380), width="content")
-    with m2:
-        for c, p in sorted(s["posicoes"].items()):
-            if not p:
-                st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas")
-                continue
-            with st.container(border=True):
-                st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
-                if p["confianca"] == "baixa":
-                    st.warning(f"Baixa confiança: {p['motivo']}")
-                    st.caption(f"Última posição válida há {p['idade_s']:.1f} s; valores abaixo são dessa posição.")
-                else:
-                    st.caption("Confiança: boa")
-                st.caption("RSSI suavizado: " + ", ".join(f"A{a} {r:.0f} dBm" for a, r in sorted(p["rssi"].items())))
-                st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
-                if p["erro_m"] is not None:
-                    st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
-        st.caption(f"Lado {L:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
-
     st.subheader("Probabilidade de queda")
     N_PROB = 10
     if s["hist"]:
@@ -759,10 +697,74 @@ with detalhes_tab:
         with g2:
             st.caption("Giroscópio |ω| (°/s) — Últimos 5s")
             st.altair_chart(grafico_sinal(2, "|ω| (°/s)"), width="stretch")
-        st.caption("ECG bruto (AD8232) — Últimos 5s")
-        st.altair_chart(grafico_sinal(3, "ADC (0–4095)"), width="stretch")
     else:
         st.caption("Sem dados de sinal para plotar.")
+
+    col_localizacao, col_ecg = st.columns(2)
+    with col_localizacao:
+        st.subheader("Localização indoor")
+        L = loc.LADO_M
+        anc_df = pd.DataFrame([{"x": x, "y": y, "rotulo": f"Anchor {i}"} for i, (x, y) in loc.ANCHORS.items()])
+        quad_df = pd.DataFrame([
+            {"x": L / 4, "y": 3 * L / 4, "q": "SE"}, {"x": 3 * L / 4, "y": 3 * L / 4, "q": "SD"},
+            {"x": L / 4, "y": L / 4, "q": "IE"}, {"x": 3 * L / 4, "y": L / 4, "q": "ID"}])
+        pos_rows = []
+        for c, p in s["posicoes"].items():
+            if p:
+                pos_rows.append({"x": p["x"], "y": p["y"], "rotulo": nome_cinto(c), "quadrante": p["nome"],
+                                 "anchors": p["n_anchors"], "erro": p["erro_m"],
+                                 "confianca": p["confianca"], "idade": p["idade_s"]})
+        quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
+                                           if p and p["confianca"] == "boa"])
+        esc_x = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
+        esc_y = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
+        quad_df["x1"] = quad_df["x"] - L / 4; quad_df["x2"] = quad_df["x"] + L / 4
+        quad_df["y1"] = quad_df["y"] - L / 4; quad_df["y2"] = quad_df["y"] + L / 4
+        fundo = alt.Chart(quad_df).mark_rect(stroke="#888", strokeWidth=1).encode(
+            x=alt.X("x1:Q", scale=esc_x, title="x (m)"), x2="x2:Q",
+            y=alt.Y("y1:Q", scale=esc_y, title="y (m)"), y2="y2:Q",
+            color=alt.condition("datum.ativo", alt.value("#2e7d32"), alt.value("#2b2b2b")),
+            tooltip=[alt.Tooltip("q:N", title="Quadrante")])
+        rot_q = alt.Chart(quad_df).mark_text(color="#bbb", fontSize=14).encode(x="x:Q", y="y:Q", text="q:N")
+        anc_pts = alt.Chart(anc_df).mark_point(shape="triangle-up", size=250, filled=True, color="#f58518").encode(
+            x="x:Q", y="y:Q", tooltip=["rotulo:N"])
+        anc_txt = alt.Chart(anc_df).mark_text(dy=-16, color="#f58518").encode(x="x:Q", y="y:Q", text="rotulo:N")
+        mapa = fundo + rot_q + anc_pts + anc_txt
+        if pos_rows:
+            pos_df = pd.DataFrame(pos_rows)
+            mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
+                x="x:Q", y="y:Q",
+                color=alt.Color("confianca:N", title="Confiança",
+                                scale=alt.Scale(domain=["boa", "baixa"], range=["#4c78a8", "#e6a23c"])),
+                tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
+                         alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
+                         alt.Tooltip("confianca:N", title="Confiança"),
+                         alt.Tooltip("idade:Q", title="Idade da posição (s)", format=".1f"),
+                         alt.Tooltip("anchors:Q", title="Anchors usadas")])
+            mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
+        st.altair_chart(mapa.properties(height=380), width="stretch")
+        for c, p in sorted(s["posicoes"].items()):
+            if not p:
+                st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas")
+                continue
+            with st.container(border=True):
+                st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
+                if p["confianca"] == "baixa":
+                    st.warning(f"Baixa confiança: {p['motivo']}")
+                    st.caption(f"Última posição válida há {p['idade_s']:.1f} s; valores abaixo são dessa posição.")
+                else:
+                    st.caption("Confiança: boa")
+                st.caption("RSSI suavizado: " + ", ".join(f"A{a} {r:.0f} dBm" for a, r in sorted(p["rssi"].items())))
+                st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
+                if p["erro_m"] is not None:
+                    st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
+        st.caption(f"Lado {L:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
+    with col_ecg:
+        st.subheader("ECG bruto (AD8232)")
+        if s["sinal"]:
+            st.altair_chart(grafico_sinal(3, "ADC (0–4095)").properties(height=380), width="stretch")
+        else:
+            st.caption("Sem dados de ECG para plotar.")
 
     with st.expander("Tabela RSSI por cinto × antena"):
         if s["tabela"]:
