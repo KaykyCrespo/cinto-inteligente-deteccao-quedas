@@ -198,6 +198,11 @@ class Banco:
                        (id_antena, nome or f"Anchor {id_antena}", x, y, agora_utc()))
         self._antenas.add(id_antena)
 
+    def atualizar_antena(self, id_antena, pos):
+        self.garantir_antena(id_antena, pos=pos)
+        self._imediato("UPDATE antena SET pos_x_m = ?, pos_y_m = ? WHERE id_antena = ?",
+                       (float(pos[0]), float(pos[1]), int(id_antena)))
+
     # ---------------- sessão ----------------
     def abrir_sessao(self, descricao=None, modelo=None, fs=None, limiar=None, faixa=None):
         cur = self._imediato(

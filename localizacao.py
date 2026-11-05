@@ -46,6 +46,33 @@ QUADRANTES = {"SE": "Superior Esquerdo", "SD": "Superior Direito",
               "IE": "Inferior Esquerdo", "ID": "Inferior Direito"}
 
 
+def configurar_ambiente(lado_m, posicoes):
+    """Redefine em tempo de execução o lado do ambiente (m) e as coordenadas das antenas
+    {id: (x, y)}. As funções leem os globais a cada chamada, então o efeito é imediato."""
+    global LADO_M, ERRO_MAX_M, ANCHORS
+    lado = float(lado_m)
+    if not math.isfinite(lado) or lado <= 0:
+        raise ValueError("lado do ambiente deve ser positivo")
+    novos = {}
+    for antena, (x, y) in posicoes.items():
+        x, y = float(x), float(y)
+        if not (0 <= x <= lado and 0 <= y <= lado):
+            raise ValueError(f"antena {antena} fora do ambiente")
+        novos[int(antena)] = (x, y)
+    LADO_M = lado
+    ERRO_MAX_M = lado * 0.25
+    ANCHORS = novos
+
+
+def antenas_colineares(posicoes, tolerancia_m2=0.1):
+    """True se as 3 primeiras antenas estiverem (quase) alinhadas: a trilateração fica ambígua."""
+    pts = [posicoes[k] for k in sorted(posicoes)][:3]
+    if len(pts) < 3:
+        return True
+    (x1, y1), (x2, y2), (x3, y3) = pts
+    return abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / 2 < tolerancia_m2
+
+
 def rssi_para_dist(rssi):
     return 10 ** ((RSSI_1M - rssi) / (10 * N_PERDA))
 

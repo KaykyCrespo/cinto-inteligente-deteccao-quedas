@@ -24,6 +24,7 @@ Gravação e download de CSV (barra lateral):
 import csv
 import hashlib
 import io
+import json
 import math
 import os
 import threading
@@ -492,6 +493,38 @@ def atualizar_alertas_telegram():
         h["cx"].configurar_telegram(h["telegram_ativo"])
 
 
+ARQUIVO_AMBIENTE = os.path.join(RAIZ, "dados", "ambiente.json")
+
+
+def carregar_ambiente():
+    """{lado, antenas:{id:(x,y)}} do JSON salvo ou dos padrões de localizacao.py."""
+    padrao = {"lado": loc.LADO_M, "antenas": {a: tuple(p) for a, p in loc.ANCHORS.items()}}
+    try:
+        with open(ARQUIVO_AMBIENTE, encoding="utf-8") as f:
+            cfg = json.load(f)
+        antenas = {int(a): (float(p[0]), float(p[1])) for a, p in cfg["antenas"].items()}
+        loc.configurar_ambiente(cfg["lado"], antenas)   # valida antes de aceitar
+        return {"lado": float(cfg["lado"]), "antenas": antenas}
+    except (OSError, ValueError, KeyError, TypeError):
+        return padrao
+
+
+def salvar_ambiente(cfg):
+    os.makedirs(os.path.dirname(ARQUIVO_AMBIENTE), exist_ok=True)
+    with open(ARQUIVO_AMBIENTE, "w", encoding="utf-8") as f:
+        json.dump({"lado": cfg["lado"], "antenas": {str(a): list(p) for a, p in cfg["antenas"].items()}}, f, indent=2)
+
+
+def aplicar_ambiente(cfg):
+    """Aplica ao cálculo e salva no JSON quando a configuração muda."""
+    h = _holder()
+    if h.get("ambiente") == cfg:
+        return
+    loc.configurar_ambiente(cfg["lado"], cfg["antenas"])
+    salvar_ambiente(cfg)
+    h["ambiente"] = cfg
+
+
 def nome_cinto(cinto):
     try:
         return f"OQPNB{int(cinto):02d}"
@@ -585,8 +618,35 @@ with st.sidebar:
     auto = st.toggle("Atualizar automaticamente", value=True)
     intervalo = st.slider("Intervalo (s)", 0.5, 5.0, 1.0, 0.5)
     st.divider()
+    st.header("Ambiente")
+    amb_inicial = carregar_ambiente()
+    if "amb_lado" not in st.session_state:
+        st.session_state["amb_lado"] = amb_inicial["lado"]
+        for a, (x, y) in amb_inicial["antenas"].items():
+            st.session_state[f"amb_a{a}_x"] = x
+            st.session_state[f"amb_a{a}_y"] = y
+    lado_amb = st.number_input("Lado do ambiente (m)", min_value=1.0, max_value=30.0, step=0.5,
+                               key="amb_lado", help="Ambiente quadrado; origem (0,0) no canto inferior esquerdo.")
+    antenas_amb = {}
+    for a in sorted(amb_inicial["antenas"]):
+        for eixo in ("x", "y"):            # mantém dentro do novo lado antes de criar o widget
+            chave = f"amb_a{a}_{eixo}"
+            st.session_state[chave] = min(float(st.session_state.get(chave, 0.0)), lado_amb)
+        cx_amb, cy_amb = st.columns(2)
+        x = cx_amb.number_input(f"Antena {a} — x (m)", min_value=0.0, max_value=lado_amb, step=0.5, key=f"amb_a{a}_x")
+        y = cy_amb.number_input(f"Antena {a} — y (m)", min_value=0.0, max_value=lado_amb, step=0.5, key=f"amb_a{a}_y")
+        antenas_amb[a] = (float(x), float(y))
+    if loc.antenas_colineares(antenas_amb):
+        st.warning("Antenas quase alinhadas: a trilateração fica ambígua. Afaste uma delas da linha das outras.")
+    cfg_ambiente = {"lado": float(lado_amb), "antenas": antenas_amb}
+    aplicar_ambiente(cfg_ambiente)
+    st.divider()
     params = (BROKER, PORT, True, limiar or None)
     cx = conectar(*params)
+    if getattr(cx, "db", None) and _holder().get("ambiente_db") != cfg_ambiente:
+        for a, p in antenas_amb.items():          # cadastro pode ter posição antiga (INSERT OR IGNORE)
+            cx.db.atualizar_antena(a, p)
+        _holder()["ambiente_db"] = cfg_ambiente
     st.header("Gravação de amostras")
     st.fragment(run_every=intervalo if auto else None)(mostrar_gravacao)()
     if st.button("Reconectar", width="stretch", type="primary"):
