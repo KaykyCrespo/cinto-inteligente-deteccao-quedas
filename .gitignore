@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Banco e gravações locais (evidências de ensaio ficam em dados/ensaios_rssi)
+dados/oqpnb.db
+dados/oqpnb.db-wal
+dados/oqpnb.db-shm
+dados/gravacoes/*.csv
+
+# Editor / SO
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

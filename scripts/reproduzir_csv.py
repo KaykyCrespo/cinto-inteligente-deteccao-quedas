@@ -4,11 +4,14 @@ Roda o detector de queda em cima de um CSV gravado pela interface_mvp
 sem o hardware e para medir sensibilidade/especificidade das suas gravações.
 
 Uso:
-    python reproduzir_csv.py leituras_mvp.csv --modelo modelo_mvp_2g.joblib
-    python reproduzir_csv.py leituras_mvp.csv --modelo modelo_mvp_8g.joblib --saida janelas.csv
+    python scripts/reproduzir_csv.py dados/gravacoes/amostras_X.csv --modelo modelos/modelo_mvp_8g.joblib
+    python scripts/reproduzir_csv.py dados/gravacoes/amostras_X.csv --modelo modelos/modelo_mvp_8g.joblib --saida janelas.csv
 """
-import argparse, csv
+import argparse, csv, sys
 from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from detector_queda import DetectorQuedaStream
 
 

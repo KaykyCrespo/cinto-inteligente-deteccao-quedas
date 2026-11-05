@@ -1,105 +1,101 @@
-# Detecção de queda: SisFall + Random Forest (RF rodando no PC)
+# OQPNB — Cinto Inteligente: detecção de queda e localização indoor (TCC MVP)
 
-## TCC MVP (dados crus via GATT a 100 Hz, MPU em ±8 g / ±2000 °/s)
-O cinto manda as leituras cruas do MPU6050 a 100 Hz, a antena repassa por MQTT e o PC
-monta janelas de 2,5 s, calcula 8 features e roda o Random Forest treinado no SisFall.
+O cinto (ESP32-C3 + MPU6050 + AD8232) envia leituras cruas a 100 Hz por BLE (GATT) para uma antena,
+que repassa por MQTT. As demais antenas escutam os anúncios BLE e medem RSSI. No PC, o painel Streamlit
+monta janelas de 2,5 s, calcula 8 características, roda um Random Forest treinado no SisFall, estima o
+quadrante do ambiente, dispara alerta no Telegram e persiste tudo em SQLite.
 
-| Arquivo | O que é |
-|---|---|
-| `Arduino/cinto_mvp_v1/` | cinto: MPU em ±8 g / ±2000 °/s, filtro interno 44 Hz, 100 Hz, contador `seq` no pacote. |
-| `Arduino/anchor_mvp_v1/` | antena: repassa o pacote do cinto sem alterar. |
-| `app.py` | painel Streamlit: cintos, gráficos, alarme de queda, gravação e download de CSV. |
-| `interface_mvp_2.py` | a mesma coisa no terminal. |
-| `modelo_mvp_8g.joblib` | Random Forest treinado no SisFall a 100 Hz, ±8 g / ±2000 °/s. |
-| `treino_sisfall.py` | refaz o treino (os padrões já são 100 Hz, ±8 g, ±2000 °/s). |
-| `reproduzir_csv.py` | roda o detector em cima de um CSV gravado (teste sem hardware). |
-| `detector_queda.py`, `features.py` | usados pelos scripts acima; deixe na mesma pasta. |
-
-As faixas do `iniciarMPU()` no cinto **precisam** ser as mesmas do modelo. Se mudar alguma, treine de novo
-com `--faixa-acc` e `--faixa-giro`.
+## Estrutura do projeto
 
 ```
-pip install numpy scipy scikit-learn==1.9.1 joblib paho-mqtt streamlit pandas
+TCC MVP/
+├── app.py                 painel Streamlit (ponto de entrada)
+├── alerta_telegram.py     envio de alertas pelo bot do Telegram
+├── banco.py               persistência SQLite (sessões, amostras, janelas, quedas, status)
+├── detector_queda.py      janelas + Random Forest em tempo real
+├── features.py            as 8 características (referência para treino e detecção)
+├── interface_mvp_2.py     parser do pacote MQTT e versão do monitor em terminal
+├── localizacao.py         RSSI -> distância -> quadrante (com confiança e retenção)
+├── requirements.txt
+├── Arduino/               firmware do cinto (cinto_mvp_v1) e da antena (anchor_mvp_v1) + bibliotecas
+├── assets/                logo
+├── modelos/               modelo_mvp_8g.joblib e o relatório do treino
+├── scripts/               treino_sisfall.py, reproduzir_csv.py
+├── tests/                 testes automatizados (localização, controle do Telegram)
+├── dados/
+│   ├── oqpnb.db           banco SQLite (criado ao abrir o painel; ignorado pelo git)
+│   ├── gravacoes/         CSV de amostras do botão "Gravar amostras" (ignorado pelo git)
+│   ├── ensaios_rssi/      CSVs e resultados dos ensaios de calibração de RSSI
+│   └── SISFALL/           dataset público usado no treino
+├── docs/                  banco_de_dados.md (DER, modelo lógico/físico, dicionário), documentação e READMEs antigos
+└── legado/                interface antiga, teste de paridade C/Python e README do caminho cinto_v5
+```
 
-# refazer o treino (uns 6 minutos)
-python treino_sisfall.py --sisfall C:\caminho\SisFall_dataset
+Os módulos Python da raiz se importam entre si pelo nome; mantenha-os juntos. Scripts e testes
+ajustam o `sys.path` sozinhos e podem ser executados de qualquer pasta.
 
-# painel
+## Instalação e execução
+
+```powershell
+pip install -r requirements.txt
+
+# painel (abre http://localhost:8501)
 python -m streamlit run app.py
 
-# ou terminal
-python interface_mvp_2.py --modelo modelo_mvp_8g.joblib --quiet --csv leituras.csv --csv-janelas janelas.csv
+# alerta Telegram (opcional): defina antes de abrir o painel
+$env:OQPNB_TG_TOKEN="token do BotFather"; $env:OQPNB_TG_CHAT="chat_id"
 
-# testar um CSV gravado
-python reproduzir_csv.py gravacoes\amostras_AAAAMMDD_HHMMSS.csv --modelo modelo_mvp_8g.joblib
+# monitor em terminal
+python interface_mvp_2.py --modelo modelos/modelo_mvp_8g.joblib --quiet
+
+# reproduzir um CSV gravado sem hardware
+python scripts/reproduzir_csv.py dados/gravacoes/amostras_X.csv --modelo modelos/modelo_mvp_8g.joblib
+
+# refazer o treino (~6 min)
+python scripts/treino_sisfall.py --sisfall dados/SISFALL/SisFall_dataset --saida modelos/modelo_mvp_8g.joblib
+
+# testes
+python -m unittest discover -s tests -p "teste_*.py" -v
 ```
 
-### CSV no Streamlit
-- Na barra lateral, **Anotação** marca o que está acontecendo (ex.: "queda frente 1"). Ela vai em cada linha gravada.
-- **Gravar amostras** salva `gravacoes/amostras_<data>.csv` e `gravacoes/janelas_<data>.csv` enquanto estiver ligado.
-- No fim da página, **Baixar CSV**: janelas analisadas, quedas detectadas e as amostras da última gravação.
+Variáveis de ambiente opcionais: `OQPNB_BROKER`, `OQPNB_PORT`, `OQPNB_MODELO`, `OQPNB_DB`,
+`OQPNB_LADO_M`, `OQPNB_RSSI_1M`, `OQPNB_N_PERDA`, `OQPNB_OFFSET_GATT`.
 
-Resultado no SisFall (validação por voluntário, limiar 0,5): 98,8% das quedas detectadas,
-95,3% de especificidade. Detalhes em `resultado_treino_mvp_8g.txt`.
+As faixas do `iniciarMPU()` no cinto (±8 g / ±2000 °/s) **precisam** ser as mesmas do modelo.
+Se mudar alguma, treine de novo com `--faixa-acc` e `--faixa-giro`.
 
-### Estabilidade da localização
-- RSSI suavizado pela mediana dos últimos 4 s e histerese de 0,6 m nas divisas.
-- Uma mudança de quadrante ou salto de RSSI de pelo menos 8 dB exige 3 s de confirmação com novas leituras.
-- Uma posição válida exige as 3 antenas configuradas em `localizacao.py`, leituras com no máximo 2 s e resíduo geométrico de até 25% do lado do ambiente. Distâncias incompatíveis com o ambiente também são rejeitadas.
-- Durante inconsistências, a última posição válida fica marcada com baixa confiança por até 6 s desde sua leitura. Depois, a localização fica indisponível até novas leituras consistentes.
-- O mapa, o histórico de quedas e o Telegram distinguem posição retida de posição atual. A confiança é uma regra qualitativa, não uma probabilidade calibrada.
-- Esses ajustes reduzem oscilações, mas não corrigem bloqueio contínuo pelo corpo. Não alteram a seleção da conexão GATT.
-- Teste sem hardware: `python -m unittest teste_localizacao -v`.
+## Painel
 
----
+- **Monitoramento**: cartão por cinto (status normal / possível queda com data, hora, antena, quadrante
+  e contagem regressiva do aviso), broker, amostras, taxa, eletrodos, antenas online, Telegram,
+  probabilidade de queda (8 últimas janelas, 0–100 %) e tabela de quedas.
+- **Detalhes**: status do sistema (modelo, limiar, pacotes inválidos, amostras perdidas, janelas
+  reiniciadas, quantidade de quedas), antenas (GATT/Advertising, RSSI, mais perto), tabela RSSI,
+  histórico de quedas, gráficos de sinais, mapa indoor com raios de distância, ECG e exportação.
+- **Barra lateral**: envio de alertas no Telegram (toggle + teste), limiar, tempo para resetar o
+  aviso de queda (1–5 min), atualização automática, gravação de amostras e reconectar.
 
-# Caminho anterior: cinto_v5 (features calculadas no cinto, BLE advertising)
+## Detecção
 
-## Arquivos
-| Arquivo | O que é |
-|---|---|
-| `Arduino/cinto_v5/` | cinto_v4 + MPU a 50 Hz (±8 g / ±2000 °/s) + pacote de janela v3. Grave junto com `fall_features.h` (mesma pasta). |
-| `Arduino/anchor_v4/` | anchor_v3 + repassa o pacote v3 no MQTT (`"type":"feat"`). Lembre de ajustar `ANCHOR_ID`, Wi-Fi e IP. |
-| `interface.py` | a sua interface + `--modelo`, `--limiar` e `--csv-janelas`. |
-| `detector_queda.py`, `features.py` | usados pela interface; deixe na mesma pasta. |
-| `treino_sisfall.py` | treina o RF com o SisFall e gera `modelo_queda.joblib`. |
-| `teste_paridade.py` | confere se o C do cinto e o Python calculam as mesmas features. |
+Random Forest (200 árvores) treinado offline no SisFall a 100 Hz, ±8 g / ±2000 °/s, validado por
+voluntário: 98,8 % das quedas detectadas e 95,3 % de especificidade (limiar 0,5). Detalhes em
+`modelos/resultado_treino_mvp_8g.txt`. O modelo não aprende em uso; para incorporar novos dados é
+preciso retreinar. Entre dois alarmes do mesmo cinto há um silêncio de 5 s.
 
-## Rodar
-```
-pip install numpy scipy scikit-learn==1.9.1 joblib paho-mqtt
-python treino_sisfall.py --sisfall C:\caminho\SisFall_dataset --saida modelo_queda.joblib
-python interface.py --modelo modelo_queda.joblib --csv-janelas janelas.csv
-```
-Sem `--modelo` a interface funciona como antes.
+## Localização
 
-## Fluxo
-1. **Cinto (ESP32-C3):** MPU6050 em ±8 g / ±2000 °/s, lido a 50 Hz. A cada 0,5 s calcula 8 features
-   da janela dos últimos 2,5 s (`Arduino/cinto_v5/fall_features.h`) e anuncia um pacote BLE versão 3
-   várias vezes seguidas (o mesmo `winSeq`), para aguentar a perda de pacotes.
-2. **Âncora:** repassa o pacote versão 3 por MQTT (campo `raw` em hexadecimal, ou `feat` + `win_seq`).
-3. **PC:** `detector_queda.py` descarta repetidos, roda o RF e dispara o alerta com a âncora mais próxima.
+Estimativa por RSSI das 3 antenas (modelo log-distância), mediana de 4 s, histerese de 0,6 m,
+confirmação de 3 s para troca de quadrante e retenção da última posição válida por até 6 s com
+baixa confiança. O mapa desenha um círculo por antena com o raio estimado.
 
-## Features (mesmas no treino e no cinto)
-amax, amin, astd (módulo da aceleração), gmax, gstd (módulo do giro), tilt (ângulo entre a gravidade
-do início e do fim da janela), jerk (maior variação de |a| por segundo), post_std (agitação no último 0,5 s).
-Todas são independentes da orientação do sensor, por isso o eixo do SisFall não precisa bater com o do cinto.
+Limite conhecido e medido (`dados/ensaios_rssi/RESULTADO_1m.txt`): com o cinto na frente do corpo,
+o tronco atenua ~22 dB para a antena às costas e ~12 dB lateralmente, mais do que a sala inteira
+(14 dB em 5 m). Subir as antenas não reduziu esse efeito. A trilateração deve ser lida como
+estimativa de região/quadrante, não de ponto. Próximo passo planejado: estimar posição e orientação
+usando o padrão de sombreamento medido.
 
-## Conferir firmware x Python
-```
-python teste_paridade.py      # precisa de gcc
-```
+## Banco de dados
 
-## Pacote BLE versão 3 (24 bytes após o Company ID 0xFFFF)
-| Offset | Tam | Campo |
-|---|---|---|
-| 0 | 5 | `OQPNB` |
-| 5 | 1 | versão = 3 |
-| 6 | 1 | beltNum |
-| 7 | 1 | winSeq (0..255) |
-| 8 | 16 | 8 × int16 LE: amax×1000, amin×1000, astd×1000, gmax×5, gstd×5, tilt×100, jerk×10, post_std×1000 |
-
-## Modelo já treinado
-`modelo_queda.joblib` foi treinado com o SisFall completo (38 voluntários, 4506 ensaios) com scikit-learn 1.9.1.
-Use essa mesma versão do scikit-learn para carregar; com outra versão, rode o treino de novo no seu PC.
-Os números da validação estão em `resultado_treino_sisfall.txt`.
+SQLite em `dados/oqpnb.db`. Janelas, quedas e status das antenas são gravados sempre; amostras
+brutas só enquanto "Gravar amostras" estiver ligado. Modelagem completa (DER, lógico, físico,
+dicionário de dados) em `docs/banco_de_dados.md`. A aba Detalhes exporta CSV por sessão e o próprio `.db`.

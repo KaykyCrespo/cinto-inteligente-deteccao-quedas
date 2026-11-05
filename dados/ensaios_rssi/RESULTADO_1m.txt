@@ -39,4 +39,37 @@ Conclusoes
 Proximos ensaios
 ----------------
 - 2 m, mesma orientacao (de frente para A1), para obter o expoente n.
-- 1 m com antenas a ~2 m de altura, para medir quanto a sombra do corpo diminui.
+- (opcional) 1 m a 45 graus e 135 graus para refinar o padrao de sombreamento do corpo.
+
+
+COMPARACAO: ANTENAS NO CHAO (BAIXO) x ANTENAS ALTAS (ALTA)
+==========================================================
+
+Arquivos: 1m {1,2,3}GATT BAIXO.csv e 1m {1,2,3}GATT ALTA.csv. Mesma orientacao
+(de frente para A1), 3 min cada. Altura usada no teste ALTA: (registrar).
+
+Mediana do RSSI (dBm) por antena
+Antena | Posicao         | BAIXO | ALTA | Diferenca
+A1     | de frente       | -67   | -65  | +2 dB
+A3     | lateral         | -78   | -74  | +4 dB
+A2     | atras do corpo  | -88   | -89  | -1 dB
+
+Diferenca frente/costas (A1 - A2): 21 dB no chao, 24 dB alta.
+
+Conclusoes
+----------
+1. Subir as antenas NAO reduziu a sombra do corpo para a antena de costas.
+   Com o cinto na cintura e a antena a 1 m de distancia horizontal, o tronco continua
+   no caminho; a distancias maiores o angulo e menor e piora.
+2. Lateral melhorou 4 dB, mas variou 12 dB entre ensaios na condicao alta
+   (-83 a -71): pequenos giros do corpo mudam muito o RSSI lateral.
+3. Taxa de anuncios recebidos: 1,0 a 1,5/s (continua baixa).
+4. O RSSI das 3 antenas mede principalmente a orientacao do corpo (0 / ~12 / ~22 dB),
+   que vale mais que a distancia dentro da sala (14 dB em 5 m). Trilateracao por
+   distancia pura nao e viavel com o cinto na frente do corpo.
+
+Proximo passo em software
+-------------------------
+Estimar posicao E orientacao (x, y, theta) usando o padrao de sombreamento medido:
+RSSI_i = RSSI_1m - 10*n*log10(d_i) - S(angulo entre theta e a antena i),
+com S = 0 (frente), ~12 (lado), ~22 (costas). Requer o n do teste de 2 m.

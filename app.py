@@ -41,14 +41,16 @@ import streamlit as st
 
 from interface_mvp_2 import TOPIC_BASE, parse_pacote_mvp
 import alerta_telegram as tg
+import banco as bd
 import localizacao as loc
 
+RAIZ = os.path.dirname(os.path.abspath(__file__))
 BROKER = os.environ.get("OQPNB_BROKER", "localhost")
 PORT = int(os.environ.get("OQPNB_PORT", "1883"))
-MODELO = os.environ.get("OQPNB_MODELO", "modelo_mvp_8g.joblib")
+MODELO = os.environ.get("OQPNB_MODELO", os.path.join(RAIZ, "modelos", "modelo_mvp_8g.joblib"))
 LSB_G_PADRAO = 4096.0     # ±8 g (só usado se a detecção estiver desligada)
 LSB_DPS_PADRAO = 16.4     # ±2000 °/s (idem)
-PASTA_GRAVACOES = "gravacoes"
+PASTA_GRAVACOES = os.path.join(RAIZ, "dados", "gravacoes")
 ROTACAO_MIN = 60          # fecha o CSV de amostras e abre a próxima parte a cada N minutos
 JANELAS_MAX = 20000       # janelas guardadas em memória para download (~3 h)
 RSSI_WINDOW = 20
@@ -111,6 +113,22 @@ class Conexao:
 
         # localização por RSSI (quadrante)
         self.loc = loc.Localizador()
+
+        # persistência: janelas/quedas/status sempre; amostras só com gravação ativa
+        self.db = None
+        self.sessao_id = None
+        try:
+            self.db = bd.Banco()
+            for a, (x, y) in loc.ANCHORS.items():
+                self.db.garantir_antena(a, pos=(x, y))
+            d = self.detector
+            self.sessao_id = self.db.abrir_sessao(
+                modelo=os.path.basename(MODELO) if d else None, fs=d.fs if d else None,
+                limiar=d.limiar if d else None, faixa=self.faixa)
+            self._evento(f"Banco {self.db.caminho}: sessão {self.sessao_id} aberta")
+        except Exception as e:
+            self.db = None
+            self._evento(f"Banco indisponível: {e}")
 
         # id único: dois clientes com o mesmo id se derrubam mutuamente no broker
         cid = f"app_{uuid.uuid4().hex[:8]}"
@@ -199,6 +217,8 @@ class Conexao:
             with self.lock:
                 self.anchors_status[antena] = payload
                 self._evento(f"Antena {antena}: {payload}")
+            if self.db and antena.isdigit():
+                self.db.registrar_status_antena(self.sessao_id, int(antena), payload)
             return
 
         d = parse_pacote_mvp(payload)
@@ -223,11 +243,18 @@ class Conexao:
                 self.grav["n_parte"] += 1
                 if self.grav["n_parte"] % 200 == 0:
                     f.flush()
+            gravando = self.grav is not None
             e = self.estado.setdefault((cinto, antena), {"rssi": [], "t": 0, "gatt": False})
             e["rssi"] = (e["rssi"] + [d["rssi"]])[-RSSI_WINDOW:]
             e["t"] = t
             e["gatt"] = not somente_rssi
         self.loc.atualizar(cinto, antena, d["rssi"], t, gatt=not somente_rssi)
+        if self.db and gravando:
+            self.db.registrar_amostra(
+                self.sessao_id, cinto, antena, agora, "advertising" if somente_rssi else "gatt", d["rssi"],
+                seq=d.get("seq"), ax=d.get("ax"), ay=d.get("ay"), az=d.get("az"),
+                gx=d.get("gx"), gy=d.get("gy"), gz=d.get("gz"),
+                eletrodos=d.get("eletrodos_conectados"), ecg=d.get("sinal_ad8232"))
 
         # antena sem GATT: só RSSI do anúncio -> entra na localização, não nos sinais
         if somente_rssi:
@@ -272,6 +299,15 @@ class Conexao:
                 enviar_tg = self.telegram_ativo and tg.configurado()
                 geracao_tg = self.telegram_geracao
                 rssi_anchor = self.detector.rssi[cinto].get(j["anchor"])
+        id_janela = None
+        if self.db:
+            try:
+                id_janela = self.db.registrar_janela(self.sessao_id, cinto, j["anchor"], agora, j["features"],
+                                                     j["prob"], self.detector.limiar, j["queda"])
+            except Exception as e:
+                with self.lock:
+                    self._evento(f"Banco: falha ao gravar janela ({e})")
+        id_queda = None
         if j["queda"]:
             pos = self.loc.estimar(cinto, t)
             local_queda = pos["nome"] if pos else None
@@ -279,11 +315,21 @@ class Conexao:
                 local_queda += " (última posição, baixa confiança)"
             with self.lock:
                 self.quedas[0]["quadrante"] = local_queda or "localização indisponível"
+            if self.db and id_janela is not None:
+                try:
+                    id_queda = self.db.registrar_queda(
+                        id_janela, antena=j["anchor"], rssi_antena=rssi_anchor,
+                        quadrante=pos["quadrante"] if pos else None,
+                        confianca=pos["confianca"] if pos else None,
+                        telegram="pendente" if enviar_tg else "nao_solicitado")
+                except Exception as e:
+                    with self.lock:
+                        self._evento(f"Banco: falha ao gravar queda ({e})")
         if j["queda"] and enviar_tg:
             texto = tg.mensagem_queda(nome_cinto(cinto), agora, j["anchor"], rssi_anchor,
                                       j["prob"], j["features"]["amax"], j["features"]["tilt"],
                                       quadrante=local_queda)
-            tg.enviar(texto, callback=lambda ok, erro: self._tg_resultado(ok, erro, "queda"),
+            tg.enviar(texto, callback=lambda ok, erro: self._tg_resultado(ok, erro, "queda", id_queda),
                       permitido=lambda: self._telegram_permitido(geracao_tg))
 
     def configurar_telegram(self, ativo):
@@ -298,10 +344,12 @@ class Conexao:
             return (not self.fechada and self.detectar and self.telegram_ativo
                     and self.telegram_geracao == geracao and tg.configurado())
 
-    def _tg_resultado(self, ok, erro, tipo):
+    def _tg_resultado(self, ok, erro, tipo, id_queda=None):
         with self.lock:
             self.tg_status = {"hora": datetime.now(), "ok": ok, "erro": erro, "tipo": tipo}
             self._evento(f"Telegram ({tipo}): {'enviado' if ok else 'FALHOU - ' + str(erro)}")
+        if self.db and id_queda is not None:
+            self.db.atualizar_telegram(id_queda, ok, erro)
 
     def testar_telegram(self):
         tg.enviar(tg.mensagem_teste(), callback=lambda ok, erro: self._tg_resultado(ok, erro, "teste"))
@@ -351,6 +399,28 @@ class Conexao:
             linhas = list(self.janelas)
         return _para_csv(linhas, JANELA_COLS)
 
+    def exportar_sessao_csv(self, tabela):
+        """CSV completo da sessão atual lido do banco (janela, queda, amostra ou status_antena)."""
+        if not self.db:
+            return b""
+        sql = {
+            "janela": "SELECT * FROM janela WHERE id_sessao = ? ORDER BY instante",
+            "queda": "SELECT q.*, j.id_sessao, j.id_cinto, j.instante, j.probabilidade, j.amax, j.gmax, j.tilt "
+                     "FROM queda q JOIN janela j ON j.id_janela = q.id_janela WHERE j.id_sessao = ? ORDER BY j.instante",
+            "amostra": "SELECT * FROM amostra WHERE id_sessao = ? ORDER BY instante",
+            "status_antena": "SELECT * FROM status_antena WHERE id_sessao = ? ORDER BY instante",
+        }[tabela]
+        cols, rows = self.db.consultar(sql, (self.sessao_id,))
+        return _para_csv([dict(zip(cols, r)) for r in rows], cols)
+
+    def contagens_banco(self):
+        if not self.db:
+            return None
+        try:
+            return self.db.contagens(self.sessao_id)
+        except Exception:
+            return None
+
     def fechar(self):
         with self.lock:
             self.fechada = True
@@ -362,6 +432,13 @@ class Conexao:
             self.client.disconnect()
         except Exception:
             pass
+        if getattr(self, "db", None):
+            try:
+                self.db.fechar_sessao(self.sessao_id)
+                self.db.fechar()
+            except Exception:
+                pass
+            self.db = None
 
 
 def _para_csv(linhas, colunas):
@@ -482,7 +559,7 @@ with st.sidebar:
     </style>""")
     col_logo, col_nome = st.columns([1, 2], gap="small", vertical_alignment="center")
     with col_logo:
-        st.image(os.path.join(os.path.dirname(__file__), "assets", "logo_oqpnb.svg"), width=72)
+        st.image(os.path.join(RAIZ, "assets", "logo_oqpnb.svg"), width=72)
     with col_nome:
         st.markdown('<div style="font-size:1rem;font-weight:600;white-space:nowrap">Cinto Inteligente</div>',
                     unsafe_allow_html=True)
@@ -991,15 +1068,29 @@ def atualizar_painel():
         st.subheader("Exportação de dados")
         d1, d2, d3 = st.columns(3)
         tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+        cont = cx.contagens_banco()
+        if cont:
+            st.caption(f"Banco {cx.db.caminho} · sessão {cx.sessao_id}: {cont['janelas']:,} janelas, "
+                       f"{cont['quedas']:,} quedas, {cont['amostras']:,} amostras gravadas".replace(",", "."))
         with d1:
-            st.download_button(f"Janelas analisadas ({s['n_janelas']})", cx.janelas_csv(),
-                               file_name=f"janelas_{tag}.csv", mime="text/csv",
-                               disabled=not s["n_janelas"], width="stretch")
+            if cont:
+                st.download_button(f"Janelas analisadas ({cont['janelas']})", cx.exportar_sessao_csv("janela"),
+                                   file_name=f"janelas_sessao{cx.sessao_id}_{tag}.csv", mime="text/csv",
+                                   disabled=not cont["janelas"], width="stretch")
+            else:
+                st.download_button(f"Janelas analisadas ({s['n_janelas']})", cx.janelas_csv(),
+                                   file_name=f"janelas_{tag}.csv", mime="text/csv",
+                                   disabled=not s["n_janelas"], width="stretch")
         with d2:
-            cols_q = ["data", "hora", "cinto", "antena", "quadrante", "prob", "amax (g)", "tilt (graus)"]
-            st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
-                               file_name=f"quedas_{tag}.csv", mime="text/csv",
-                               disabled=not s["quedas"], width="stretch")
+            if cont:
+                st.download_button(f"Quedas detectadas ({cont['quedas']})", cx.exportar_sessao_csv("queda"),
+                                   file_name=f"quedas_sessao{cx.sessao_id}_{tag}.csv", mime="text/csv",
+                                   disabled=not cont["quedas"], width="stretch")
+            else:
+                cols_q = ["data", "hora", "cinto", "antena", "quadrante", "prob", "amax (g)", "tilt (graus)"]
+                st.download_button(f"Quedas detectadas ({len(s['quedas'])})", _para_csv(s["quedas"], cols_q),
+                                   file_name=f"quedas_{tag}.csv", mime="text/csv",
+                                   disabled=not s["quedas"], width="stretch")
         with d3:
             g = cx.status_gravacao()
             if g["ativa"]:
@@ -1018,6 +1109,21 @@ def atualizar_painel():
             else:
                 st.button("Amostras: use 'Gravar amostras' na barra lateral", disabled=True,
                           width="stretch")
+        if cont:
+            b1, b2, b3 = st.columns(3)
+            b1.download_button(f"Amostras no banco ({cont['amostras']})", cx.exportar_sessao_csv("amostra"),
+                               file_name=f"amostras_sessao{cx.sessao_id}_{tag}.csv", mime="text/csv",
+                               disabled=not cont["amostras"], width="stretch", key="dl_bd_amostras")
+            b2.download_button("Status das antenas", cx.exportar_sessao_csv("status_antena"),
+                               file_name=f"status_antenas_sessao{cx.sessao_id}_{tag}.csv", mime="text/csv",
+                               width="stretch", key="dl_bd_status")
+            if os.path.exists(cx.db.caminho):
+                cx.db.flush()
+                st_db = os.stat(cx.db.caminho)
+                b3.download_button(f"Banco SQLite ({st_db.st_size / 1e6:.1f} MB)",
+                                   _ler_arquivo(cx.db.caminho, st_db.st_mtime, st_db.st_size),
+                                   file_name=os.path.basename(cx.db.caminho), mime="application/vnd.sqlite3",
+                                   width="stretch", key="dl_bd_arquivo")
         st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}. "
                    f"O CSV de amostras é dividido em partes (_p01, _p02, ...) a cada {ROTACAO_MIN} min.")
 

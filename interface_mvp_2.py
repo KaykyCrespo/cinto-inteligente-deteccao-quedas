@@ -17,8 +17,8 @@ Possui duas formas de acionamento:
        (ou executando `python interface_mvp_1.py` e escolhendo a opção [2])
 
   3. Detecção de queda em tempo real (Random Forest treinado no SisFall):
-       python interface_mvp_2.py --modelo modelo_mvp_8g.joblib --quiet
-       python interface_mvp_2.py --modelo modelo_mvp_8g.joblib --quiet --csv leituras.csv --csv-janelas janelas.csv
+       python interface_mvp_2.py --modelo modelos/modelo_mvp_8g.joblib --quiet
+       python interface_mvp_2.py --modelo modelos/modelo_mvp_8g.joblib --quiet --csv leituras.csv --csv-janelas janelas.csv
      O cinto_mvp_v1 configura o MPU em ±8 g / ±2000 °/s, as mesmas faixas do modelo_mvp_8g.joblib.
      --quiet esconde as 100 linhas/s de amostras e mostra só janelas e alarmes.
      detector_queda.py e features.py precisam estar na mesma pasta.

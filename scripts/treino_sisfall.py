@@ -2,9 +2,9 @@
 Treina o Random Forest de detecção de queda com o SisFall.
 
 Uso (TCC MVP: dados crus a 100 Hz, MPU em ±8 g / ±2000 °/s, que é o padrão):
-    python treino_sisfall.py --sisfall CAMINHO/SisFall_dataset
+    python scripts/treino_sisfall.py --sisfall dados/SISFALL/SisFall_dataset --saida modelos/modelo_mvp_8g.joblib
 
-Gera modelo_mvp_8g.joblib. As faixas precisam ser as mesmas configuradas
+Gera o .joblib indicado em --saida. As faixas precisam ser as mesmas configuradas
 no iniciarMPU() do cinto_mvp_v1.ino.
 
 Estrutura esperada do SisFall (como vem no zip oficial):
@@ -28,6 +28,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GroupKFold
 import joblib
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from features import (NAMES, tamanhos, window_features, quantize, sliding_windows)
 
 ACC_K = (2 * 16) / 2 ** 13       # ADXL345: ±16 g, 13 bits
@@ -115,7 +116,7 @@ def resumo(res, thr):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sisfall", required=True)
-    ap.add_argument("--saida", default="modelo_mvp_8g.joblib")
+    ap.add_argument("--saida", default="modelos/modelo_mvp_8g.joblib")
     ap.add_argument("--limiar", type=float, default=0.5)
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--fs", type=int, default=100, help="taxa do cinto em Hz (FREQ_LEITURA_HZ do cinto)")

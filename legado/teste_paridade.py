@@ -4,6 +4,7 @@ que features.py. Precisa de gcc. Uso: python teste_paridade.py
 """
 import subprocess, tempfile, os, sys
 import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from features import WIN, STEP, SCALES, sliding_windows
 
 C_MAIN = r'''

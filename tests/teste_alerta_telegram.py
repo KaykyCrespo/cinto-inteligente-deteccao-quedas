@@ -1,4 +1,5 @@
 import ast
+import sys
 import threading
 import unittest
 from pathlib import Path
@@ -6,13 +7,15 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.error import URLError
 
+RAIZ = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(RAIZ))
 import alerta_telegram as tg
 
 
 class TestControleTelegram(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        caminho = Path(__file__).with_name("app.py")
+        caminho = RAIZ / "app.py"
         arvore = ast.parse(caminho.read_text(encoding="utf-8-sig"))
         classe = next(node for node in arvore.body
                       if isinstance(node, ast.ClassDef) and node.name == "Conexao")
