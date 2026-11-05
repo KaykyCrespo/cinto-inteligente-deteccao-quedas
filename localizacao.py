@@ -29,6 +29,8 @@ import numpy as np
 from scipy.optimize import least_squares
 
 LADO_M = float(os.environ.get("OQPNB_LADO_M", "5.0"))
+LARGURA_M = float(os.environ.get("OQPNB_LARGURA_M", LADO_M))   # eixo x
+ALTURA_M = float(os.environ.get("OQPNB_ALTURA_M", LADO_M))     # eixo y
 RSSI_1M = float(os.environ.get("OQPNB_RSSI_1M", "-62"))
 N_PERDA = float(os.environ.get("OQPNB_N_PERDA", "2.0"))
 OFFSET_GATT_DB = float(os.environ.get("OQPNB_OFFSET_GATT", "0"))  # rssi_gatt + offset ~ rssi_anuncio
@@ -38,29 +40,35 @@ HISTERESE_M = 0.6     # só troca de quadrante se passar da divisa por mais que 
 CONFIRMACAO_S = 3.0
 RETENCAO_S = 6.0
 FRESCOR_S = 2.0
-ERRO_MAX_M = LADO_M * 0.25
+ERRO_MAX_M = max(LARGURA_M, ALTURA_M) * 0.25
 SALTO_RSSI_DB = 8.0
 
-ANCHORS = {1: (LADO_M / 2, LADO_M), 2: (0.0, 0.0), 3: (LADO_M, 0.0)}
+ANCHORS = {1: (LARGURA_M / 2, ALTURA_M), 2: (0.0, 0.0), 3: (LARGURA_M, 0.0)}
 QUADRANTES = {"SE": "Superior Esquerdo", "SD": "Superior Direito",
               "IE": "Inferior Esquerdo", "ID": "Inferior Direito"}
 
 
-def configurar_ambiente(lado_m, posicoes):
-    """Redefine em tempo de execução o lado do ambiente (m) e as coordenadas das antenas
+def dist_max():
+    """Maior distância aceita de uma antena (além disso o RSSI é tratado como fora do ambiente)."""
+    return 1.5 * max(LARGURA_M, ALTURA_M)
+
+
+def configurar_ambiente(largura_m, altura_m, posicoes):
+    """Redefine em tempo de execução as dimensões do ambiente (m) e as coordenadas das antenas
     {id: (x, y)}. As funções leem os globais a cada chamada, então o efeito é imediato."""
-    global LADO_M, ERRO_MAX_M, ANCHORS
-    lado = float(lado_m)
-    if not math.isfinite(lado) or lado <= 0:
-        raise ValueError("lado do ambiente deve ser positivo")
+    global LADO_M, LARGURA_M, ALTURA_M, ERRO_MAX_M, ANCHORS
+    largura, altura = float(largura_m), float(altura_m)
+    if not (math.isfinite(largura) and math.isfinite(altura)) or largura <= 0 or altura <= 0:
+        raise ValueError("dimensões do ambiente devem ser positivas")
     novos = {}
     for antena, (x, y) in posicoes.items():
         x, y = float(x), float(y)
-        if not (0 <= x <= lado and 0 <= y <= lado):
+        if not (0 <= x <= largura and 0 <= y <= altura):
             raise ValueError(f"antena {antena} fora do ambiente")
         novos[int(antena)] = (x, y)
-    LADO_M = lado
-    ERRO_MAX_M = lado * 0.25
+    LARGURA_M, ALTURA_M = largura, altura
+    LADO_M = max(largura, altura)
+    ERRO_MAX_M = LADO_M * 0.25
     ANCHORS = novos
 
 
@@ -80,13 +88,13 @@ def rssi_para_dist(rssi):
 def quadrante(x, y, anterior=None):
     """Quadrante de (x, y). Com `anterior`, mantém o quadrante atual enquanto o ponto
     não ultrapassar a divisa por mais de HISTERESE_M."""
-    meio = LADO_M / 2
-    col = "E" if x < meio else "D"
-    lin = "S" if y >= meio else "I"
+    meio_x, meio_y = LARGURA_M / 2, ALTURA_M / 2
+    col = "E" if x < meio_x else "D"
+    lin = "S" if y >= meio_y else "I"
     if anterior:
-        if abs(x - meio) < HISTERESE_M:
+        if abs(x - meio_x) < HISTERESE_M:
             col = anterior[1]
-        if abs(y - meio) < HISTERESE_M:
+        if abs(y - meio_y) < HISTERESE_M:
             lin = anterior[0]
     return lin + col
 
@@ -124,8 +132,8 @@ class Localizador:
         out = {}
         for a, r in self.rssi_suavizado(cinto, agora).items():
             bruto = rssi_para_dist(r)
-            out[a] = {"rssi": round(r, 1), "dist": float(min(bruto, LADO_M * 1.5)),
-                      "limitado": bool(bruto > LADO_M * 1.5)}
+            out[a] = {"rssi": round(r, 1), "dist": float(min(bruto, dist_max())),
+                      "limitado": bool(bruto > dist_max())}
         return out
 
     def estimar(self, cinto, agora):
@@ -152,8 +160,8 @@ class Localizador:
             return self._reter(cinto, agora, "Leituras desatualizadas")
         P = np.array([ANCHORS[i] for i in ids])
         d = np.array([rssi_para_dist(rssi[i]) for i in ids])
-        fora_da_faixa = bool(np.any(d > LADO_M * 1.5))
-        d = np.clip(d, 0.3, LADO_M * 1.5)
+        fora_da_faixa = bool(np.any(d > dist_max()))
+        d = np.clip(d, 0.3, dist_max())
 
         # chute inicial: centroide ponderado (robusto a calibração ruim)
         w = 1.0 / d ** 2
@@ -161,7 +169,7 @@ class Localizador:
 
         def res(p):
             return np.hypot(P[:, 0] - p[0], P[:, 1] - p[1]) - d
-        sol = least_squares(res, x0, bounds=([0, 0], [LADO_M, LADO_M]))
+        sol = least_squares(res, x0, bounds=([0, 0], [LARGURA_M, ALTURA_M]))
         x, y = sol.x
         erro = float(np.sqrt(np.mean(sol.fun ** 2)))
         if fora_da_faixa or not sol.success or erro > ERRO_MAX_M:

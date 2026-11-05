@@ -497,14 +497,17 @@ ARQUIVO_AMBIENTE = os.path.join(RAIZ, "dados", "ambiente.json")
 
 
 def carregar_ambiente():
-    """{lado, antenas:{id:(x,y)}} do JSON salvo ou dos padrões de localizacao.py."""
-    padrao = {"lado": loc.LADO_M, "antenas": {a: tuple(p) for a, p in loc.ANCHORS.items()}}
+    """{largura, altura, antenas:{id:(x,y)}} do JSON salvo ou dos padrões de localizacao.py."""
+    padrao = {"largura": loc.LARGURA_M, "altura": loc.ALTURA_M,
+              "antenas": {a: tuple(p) for a, p in loc.ANCHORS.items()}}
     try:
         with open(ARQUIVO_AMBIENTE, encoding="utf-8") as f:
             cfg = json.load(f)
+        largura = float(cfg.get("largura", cfg.get("lado")))
+        altura = float(cfg.get("altura", cfg.get("lado")))
         antenas = {int(a): (float(p[0]), float(p[1])) for a, p in cfg["antenas"].items()}
-        loc.configurar_ambiente(cfg["lado"], antenas)   # valida antes de aceitar
-        return {"lado": float(cfg["lado"]), "antenas": antenas}
+        loc.configurar_ambiente(largura, altura, antenas)   # valida antes de aceitar
+        return {"largura": largura, "altura": altura, "antenas": antenas}
     except (OSError, ValueError, KeyError, TypeError):
         return padrao
 
@@ -512,7 +515,8 @@ def carregar_ambiente():
 def salvar_ambiente(cfg):
     os.makedirs(os.path.dirname(ARQUIVO_AMBIENTE), exist_ok=True)
     with open(ARQUIVO_AMBIENTE, "w", encoding="utf-8") as f:
-        json.dump({"lado": cfg["lado"], "antenas": {str(a): list(p) for a, p in cfg["antenas"].items()}}, f, indent=2)
+        json.dump({"largura": cfg["largura"], "altura": cfg["altura"],
+                   "antenas": {str(a): list(p) for a, p in cfg["antenas"].items()}}, f, indent=2)
 
 
 def aplicar_ambiente(cfg):
@@ -520,9 +524,48 @@ def aplicar_ambiente(cfg):
     h = _holder()
     if h.get("ambiente") == cfg:
         return
-    loc.configurar_ambiente(cfg["lado"], cfg["antenas"])
+    loc.configurar_ambiente(cfg["largura"], cfg["altura"], cfg["antenas"])
     salvar_ambiente(cfg)
     h["ambiente"] = cfg
+
+
+def sincronizar_antenas_banco(cx, cfg):
+    h = _holder()
+    if getattr(cx, "db", None) and h.get("ambiente_db") != cfg:
+        for a, p in cfg["antenas"].items():        # cadastro pode ter posição antiga (INSERT OR IGNORE)
+            cx.db.atualizar_antena(a, p)
+        h["ambiente_db"] = cfg
+
+
+def painel_ambiente(cx):
+    """Controles de largura/altura e posição das antenas; aplica, salva e sincroniza o banco."""
+    atual = _holder().get("ambiente") or carregar_ambiente()
+    if "amb_largura" not in st.session_state:
+        st.session_state["amb_largura"] = atual["largura"]
+        st.session_state["amb_altura"] = atual["altura"]
+        for a, (x, y) in atual["antenas"].items():
+            st.session_state[f"amb_a{a}_x"] = x
+            st.session_state[f"amb_a{a}_y"] = y
+    with st.expander("Ambiente e posição das antenas", expanded=False):
+        st.caption("Origem (0,0) no canto inferior esquerdo. Largura é o eixo x, altura é o eixo y.")
+        cl, ca = st.columns(2)
+        largura = cl.number_input("Largura do ambiente — x (m)", min_value=1.0, max_value=30.0, step=0.5, key="amb_largura")
+        altura = ca.number_input("Altura do ambiente — y (m)", min_value=1.0, max_value=30.0, step=0.5, key="amb_altura")
+        antenas = {}
+        for a in sorted(atual["antenas"]):
+            for eixo, limite in (("x", largura), ("y", altura)):   # mantém dentro do novo limite antes de criar o widget
+                chave = f"amb_a{a}_{eixo}"
+                st.session_state[chave] = min(float(st.session_state.get(chave, 0.0)), limite)
+            c1, c2 = st.columns(2)
+            x = c1.number_input(f"Antena {a} — x (m)", min_value=0.0, max_value=largura, step=0.5, key=f"amb_a{a}_x")
+            y = c2.number_input(f"Antena {a} — y (m)", min_value=0.0, max_value=altura, step=0.5, key=f"amb_a{a}_y")
+            antenas[a] = (float(x), float(y))
+        if loc.antenas_colineares(antenas):
+            st.warning("Antenas quase alinhadas: a trilateração fica ambígua. Afaste uma delas da linha das outras.")
+    cfg = {"largura": float(largura), "altura": float(altura), "antenas": antenas}
+    aplicar_ambiente(cfg)
+    sincronizar_antenas_banco(cx, cfg)
+    return cfg
 
 
 def nome_cinto(cinto):
@@ -618,35 +661,10 @@ with st.sidebar:
     auto = st.toggle("Atualizar automaticamente", value=True)
     intervalo = st.slider("Intervalo (s)", 0.5, 5.0, 1.0, 0.5)
     st.divider()
-    st.header("Ambiente")
-    amb_inicial = carregar_ambiente()
-    if "amb_lado" not in st.session_state:
-        st.session_state["amb_lado"] = amb_inicial["lado"]
-        for a, (x, y) in amb_inicial["antenas"].items():
-            st.session_state[f"amb_a{a}_x"] = x
-            st.session_state[f"amb_a{a}_y"] = y
-    lado_amb = st.number_input("Lado do ambiente (m)", min_value=1.0, max_value=30.0, step=0.5,
-                               key="amb_lado", help="Ambiente quadrado; origem (0,0) no canto inferior esquerdo.")
-    antenas_amb = {}
-    for a in sorted(amb_inicial["antenas"]):
-        for eixo in ("x", "y"):            # mantém dentro do novo lado antes de criar o widget
-            chave = f"amb_a{a}_{eixo}"
-            st.session_state[chave] = min(float(st.session_state.get(chave, 0.0)), lado_amb)
-        cx_amb, cy_amb = st.columns(2)
-        x = cx_amb.number_input(f"Antena {a} — x (m)", min_value=0.0, max_value=lado_amb, step=0.5, key=f"amb_a{a}_x")
-        y = cy_amb.number_input(f"Antena {a} — y (m)", min_value=0.0, max_value=lado_amb, step=0.5, key=f"amb_a{a}_y")
-        antenas_amb[a] = (float(x), float(y))
-    if loc.antenas_colineares(antenas_amb):
-        st.warning("Antenas quase alinhadas: a trilateração fica ambígua. Afaste uma delas da linha das outras.")
-    cfg_ambiente = {"lado": float(lado_amb), "antenas": antenas_amb}
-    aplicar_ambiente(cfg_ambiente)
-    st.divider()
+    aplicar_ambiente(carregar_ambiente())          # antes de conectar: o banco cadastra as antenas com a posição certa
     params = (BROKER, PORT, True, limiar or None)
     cx = conectar(*params)
-    if getattr(cx, "db", None) and _holder().get("ambiente_db") != cfg_ambiente:
-        for a, p in antenas_amb.items():          # cadastro pode ter posição antiga (INSERT OR IGNORE)
-            cx.db.atualizar_antena(a, p)
-        _holder()["ambiente_db"] = cfg_ambiente
+    sincronizar_antenas_banco(cx, _holder()["ambiente"])
     st.header("Gravação de amostras")
     st.fragment(run_every=intervalo if auto else None)(mostrar_gravacao)()
     if st.button("Reconectar", width="stretch", type="primary"):
@@ -1033,11 +1051,13 @@ def atualizar_painel():
         col_localizacao, col_ecg = st.columns(2)
         with col_localizacao:
             st.subheader("Localização indoor")
-            L = loc.LADO_M
+            painel_ambiente(cx)
+            W, H = loc.LARGURA_M, loc.ALTURA_M
+            L = max(W, H)
             anc_df = pd.DataFrame([{"x": x, "y": y, "rotulo": f"Anchor {i}"} for i, (x, y) in loc.ANCHORS.items()])
             quad_df = pd.DataFrame([
-                {"x": L / 4, "y": 3 * L / 4, "q": "SE"}, {"x": 3 * L / 4, "y": 3 * L / 4, "q": "SD"},
-                {"x": L / 4, "y": L / 4, "q": "IE"}, {"x": 3 * L / 4, "y": L / 4, "q": "ID"}])
+                {"x": W / 4, "y": 3 * H / 4, "q": "SE"}, {"x": 3 * W / 4, "y": 3 * H / 4, "q": "SD"},
+                {"x": W / 4, "y": H / 4, "q": "IE"}, {"x": 3 * W / 4, "y": H / 4, "q": "ID"}])
             pos_rows = []
             for c, p in s["posicoes"].items():
                 if p:
@@ -1046,10 +1066,10 @@ def atualizar_painel():
                                      "confianca": p["confianca"], "idade": p["idade_s"]})
             quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
                                                if p and p["confianca"] == "boa"])
-            esc_x = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
-            esc_y = alt.Scale(domain=[-0.5, L + 0.5], nice=False)
-            quad_df["x1"] = quad_df["x"] - L / 4; quad_df["x2"] = quad_df["x"] + L / 4
-            quad_df["y1"] = quad_df["y"] - L / 4; quad_df["y2"] = quad_df["y"] + L / 4
+            esc_x = alt.Scale(domain=[-0.5, W + 0.5], nice=False)
+            esc_y = alt.Scale(domain=[-0.5, H + 0.5], nice=False)
+            quad_df["x1"] = quad_df["x"] - W / 4; quad_df["x2"] = quad_df["x"] + W / 4
+            quad_df["y1"] = quad_df["y"] - H / 4; quad_df["y2"] = quad_df["y"] + H / 4
             fundo = alt.Chart(quad_df).mark_rect(stroke="#888", strokeWidth=1).encode(
                 x=alt.X("x1:Q", scale=esc_x, title="x (m)"), x2="x2:Q",
                 y=alt.Y("y1:Q", scale=esc_y, title="y (m)"), y2="y2:Q",
@@ -1096,7 +1116,10 @@ def atualizar_painel():
                              alt.Tooltip("idade:Q", title="Idade da posição (s)", format=".1f"),
                              alt.Tooltip("anchors:Q", title="Anchors usadas")])
                 mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
-            st.altair_chart(mapa.properties(height=420, width=420), width="content")
+            # mesma escala em x e y: a largura do gráfico segue a proporção do ambiente
+            altura_px = 420
+            largura_px = int(altura_px * (W + 1) / (H + 1))
+            st.altair_chart(mapa.properties(height=altura_px, width=largura_px), width="content")
             for c, p in sorted(s["posicoes"].items()):
                 raios_c = s.get("raios", {}).get(c, {})
                 if raios_c:
@@ -1117,7 +1140,7 @@ def atualizar_painel():
                     st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
                     if p["erro_m"] is not None:
                         st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
-            st.caption(f"Lado {L:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
+            st.caption(f"Ambiente {W:g} × {H:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
         with col_ecg:
             if s["sinal"]:
                 st.vega_lite_chart(grafico_sinal(3, "ADC (0–4095)", "ECG bruto (AD8232) - Últimos 5s", altura=380), width="stretch")
