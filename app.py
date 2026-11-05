@@ -1049,7 +1049,7 @@ def atualizar_painel():
         else:
             st.caption("Sem dados de sinal para plotar.")
 
-        col_localizacao, col_ecg = st.columns(2)
+        col_localizacao, col_ecg = st.columns([65, 35])
         with col_localizacao:
             st.subheader("Localização indoor")
             painel_ambiente(cx)
@@ -1115,15 +1115,15 @@ def atualizar_painel():
                              alt.Tooltip("rssi:Q", title="RSSI (dBm)", format=".0f")])
             if pos_rows:
                 pos_df = pd.DataFrame(pos_rows)
-                rotulos_conf = {"boa": "Cinto (posição atual)", "baixa": "Cinto (última posição, baixa confiança)",
-                                "nao_confirmada": "Cinto (estimativa não confirmada)"}
+                rotulos_conf = {"boa": "Posição atual", "baixa": "Última posição (baixa confiança)",
+                                "nao_confirmada": "Estimativa não confirmada"}
                 pos_df["legenda"] = pos_df["confianca"].map(rotulos_conf)
                 mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
                     x="x:Q", y="y:Q",
                     color=alt.Color("legenda:N", title="Pessoa com o cinto",
                                     scale=alt.Scale(domain=list(rotulos_conf.values()),
                                                     range=["#4c78a8", "#e6a23c", "#9e9e9e"]),
-                                    legend=alt.Legend(orient="right")),
+                                    legend=alt.Legend(orient="right", labelLimit=260)),
                     tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
                              alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
                              alt.Tooltip("confianca:N", title="Confiança"),
@@ -1131,9 +1131,13 @@ def atualizar_painel():
                              alt.Tooltip("anchors:Q", title="Anchors usadas")])
                 mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
             # mesma escala em x e y: a largura do gráfico segue a proporção do ambiente
-            altura_px = 420
-            largura_px = int(altura_px * (W + 1) / (H + 1))
-            st.altair_chart(mapa.properties(height=altura_px, width=largura_px), width="content")
+            escala_px = min(480 / (H + 1), 520 / (W + 1))
+            altura_px = round(escala_px * (H + 1))
+            largura_px = round(escala_px * (W + 1))
+            st.altair_chart(
+                mapa.properties(height=altura_px, width=largura_px,
+                                autosize=alt.AutoSizeParams(type="pad", contains="padding")),
+                width="content")
             for c, p in sorted(s["posicoes"].items()):
                 raios_c = s.get("raios", {}).get(c, {})
                 if raios_c:
