@@ -1080,36 +1080,41 @@ def atualizar_painel():
                 x="x:Q", y="y:Q", tooltip=["rotulo:N"])
             anc_txt = alt.Chart(anc_df).mark_text(dy=-16, color="#f58518").encode(x="x:Q", y="y:Q", text="rotulo:N")
             mapa = fundo + rot_q + anc_pts + anc_txt
-            # círculos de distância estimada: a interseção indica a região provável do cinto
+            # círculos de distância: contínuo = antena mais forte (mais perto); tracejado = demais
             circ_rows = []
             angulos = [2 * math.pi * k / 72 for k in range(73)]
             for c, por_antena in s.get("raios", {}).items():
                 if not por_antena:
                     continue
-                mais_forte = max(por_antena, key=lambda a: por_antena[a]["rssi"])
+                mais_forte = max(por_antena, key=lambda k: por_antena[k]["rssi"])
                 for a, info in por_antena.items():
                     ax_, ay_ = loc.ANCHORS[a]
-                    # antena longe/sombreada só exclui região; desenha fraca para não dominar o mapa
-                    tipo = "perto" if a == mais_forte else ("longe" if info["dist"] > L else "media")
+                    tipo = "Antena mais perto" if a == mais_forte else "Demais antenas"
                     for k, ang in enumerate(angulos):
                         circ_rows.append({"x": ax_ + info["dist"] * math.cos(ang), "y": ay_ + info["dist"] * math.sin(ang),
                                           "k": k, "serie": f"{nome_cinto(c)}-A{a}", "antena": f"A{a}", "tipo": tipo,
                                           "raio": round(info["dist"], 2), "rssi": info["rssi"]})
             if circ_rows:
-                tipos = ["perto", "media", "longe"]
-                mapa += alt.Chart(pd.DataFrame(circ_rows)).mark_line(clip=True).encode(
-                    x="x:Q", y="y:Q", order="k:Q", detail="serie:N", color=alt.value("#f58518"),
-                    opacity=alt.Opacity("tipo:N", scale=alt.Scale(domain=tipos, range=[0.95, 0.6, 0.2]), legend=None),
-                    strokeDash=alt.StrokeDash("tipo:N", scale=alt.Scale(domain=tipos, range=[[1, 0], [6, 4], [2, 4]]), legend=None),
-                    strokeWidth=alt.StrokeWidth("tipo:N", scale=alt.Scale(domain=tipos, range=[2.5, 1.5, 1]), legend=None),
-                    tooltip=[alt.Tooltip("antena:N", title="Antena"), alt.Tooltip("raio:Q", title="Raio (m)", format=".1f"),
+                tipos = ["Antena mais perto", "Demais antenas"]
+                mapa += alt.Chart(pd.DataFrame(circ_rows)).mark_line(clip=True, color="#f58518").encode(
+                    x="x:Q", y="y:Q", order="k:Q", detail="serie:N",
+                    strokeDash=alt.StrokeDash("tipo:N", title="Raio estimado",
+                                              scale=alt.Scale(domain=tipos, range=[[1, 0], [6, 4]]),
+                                              legend=alt.Legend(orient="bottom", symbolStrokeColor="#f58518", symbolStrokeWidth=2)),
+                    strokeWidth=alt.StrokeWidth("tipo:N", scale=alt.Scale(domain=tipos, range=[2.5, 1.2]), legend=None),
+                    opacity=alt.Opacity("tipo:N", scale=alt.Scale(domain=tipos, range=[0.95, 0.55]), legend=None),
+                    tooltip=[alt.Tooltip("antena:N", title="Antena"), alt.Tooltip("tipo:N", title="Tipo"),
+                             alt.Tooltip("raio:Q", title="Raio (m)", format=".1f"),
                              alt.Tooltip("rssi:Q", title="RSSI (dBm)", format=".0f")])
             if pos_rows:
                 pos_df = pd.DataFrame(pos_rows)
+                pos_df["legenda"] = pos_df["confianca"].map({"boa": "Cinto (posição atual)", "baixa": "Cinto (última posição, baixa confiança)"})
                 mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
                     x="x:Q", y="y:Q",
-                    color=alt.Color("confianca:N", title="Confiança",
-                                    scale=alt.Scale(domain=["boa", "baixa"], range=["#4c78a8", "#e6a23c"])),
+                    color=alt.Color("legenda:N", title="Pessoa com o cinto",
+                                    scale=alt.Scale(domain=["Cinto (posição atual)", "Cinto (última posição, baixa confiança)"],
+                                                    range=["#4c78a8", "#e6a23c"]),
+                                    legend=alt.Legend(orient="bottom")),
                     tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
                              alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
                              alt.Tooltip("confianca:N", title="Confiança"),
