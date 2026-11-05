@@ -1107,7 +1107,7 @@ def atualizar_painel():
                     x="x:Q", y="y:Q", order="k:Q", detail="serie:N",
                     strokeDash=alt.StrokeDash("tipo:N", title="Raio estimado",
                                               scale=alt.Scale(domain=tipos, range=[[1, 0], [6, 4]]),
-                                              legend=alt.Legend(orient="right", symbolStrokeColor="#f58518", symbolStrokeWidth=2)),
+                                              legend=None),
                     strokeWidth=alt.StrokeWidth("tipo:N", scale=alt.Scale(domain=tipos, range=[2.5, 1.2]), legend=None),
                     opacity=alt.Opacity("tipo:N", scale=alt.Scale(domain=tipos, range=[0.95, 0.55]), legend=None),
                     tooltip=[alt.Tooltip("antena:N", title="Antena"), alt.Tooltip("tipo:N", title="Tipo"),
@@ -1123,7 +1123,7 @@ def atualizar_painel():
                     color=alt.Color("legenda:N", title="Pessoa com o cinto",
                                     scale=alt.Scale(domain=list(rotulos_conf.values()),
                                                     range=["#4c78a8", "#e6a23c", "#9e9e9e"]),
-                                    legend=alt.Legend(orient="right", labelLimit=260)),
+                                    legend=None),
                     tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
                              alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
                              alt.Tooltip("confianca:N", title="Confiança"),
@@ -1134,33 +1134,37 @@ def atualizar_painel():
             escala_px = min(480 / (H + 1), 520 / (W + 1))
             altura_px = round(escala_px * (H + 1))
             largura_px = round(escala_px * (W + 1))
-            st.altair_chart(
+            col_desenho, col_legenda = st.columns([7, 3])
+            col_desenho.altair_chart(
                 mapa.properties(height=altura_px, width=largura_px,
                                 autosize=alt.AutoSizeParams(type="pad", contains="padding")),
                 width="content")
-            for c, p in sorted(s["posicoes"].items()):
-                raios_c = s.get("raios", {}).get(c, {})
-                if raios_c:
-                    st.caption("Raios atuais: " + ", ".join(
-                        f"A{a} {r['rssi']:.0f} dBm → {'≥ ' if r['limitado'] else ''}{r['dist']:.1f} m"
-                        for a, r in sorted(raios_c.items())))
-                if not p:
-                    b = s.get("brutas", {}).get(c)
-                    extra = f" Estimativa não confirmada: {b['nome']} ({b['quadrante']})." if b else ""
-                    st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas.{extra}")
-                    continue
-                with st.container(border=True):
-                    st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
-                    if p["confianca"] == "baixa":
-                        st.warning(f"Baixa confiança: {p['motivo']}")
-                        st.caption(f"Última posição válida há {p['idade_s']:.1f} s; valores abaixo são dessa posição.")
-                    else:
-                        st.caption("Confiança: boa")
-                    st.caption("RSSI suavizado: " + ", ".join(f"A{a} {r:.0f} dBm" for a, r in sorted(p["rssi"].items())))
-                    st.caption("Distância estimada: " + ", ".join(f"A{a} {d:.1f} m" for a, d in sorted(p["distancias"].items())))
-                    if p["erro_m"] is not None:
-                        st.caption(f"Resíduo do ajuste: {p['erro_m']:.1f} m | anchors: {p['n_anchors']}")
-            st.caption(f"Ambiente {W:g} × {H:g} m · RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
+            with col_legenda:
+                st.markdown("**Raio estimado**")
+                st.markdown(
+                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+                    '<span style="width:22px;flex-shrink:0;border-top:2px solid #f58518"></span>'
+                    '<span>Antena mais perto</span></div>'
+                    '<div style="display:flex;align-items:center;gap:8px">'
+                    '<span style="width:22px;flex-shrink:0;border-top:2px dashed #f58518"></span>'
+                    '<span>Demais antenas</span></div>', unsafe_allow_html=True)
+                st.markdown("**Pessoa com o cinto**")
+                for cor, texto in [("#4c78a8", "Posição atual"),
+                                   ("#e6a23c", "Última posição (baixa confiança)"),
+                                   ("#9e9e9e", "Estimativa não confirmada")]:
+                    st.markdown(
+                        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+                        f'<span style="width:10px;height:10px;flex-shrink:0;border-radius:50%;background:{cor}"></span>'
+                        f'<span>{texto}</span></div>', unsafe_allow_html=True)
+                st.markdown("**Raios atuais**")
+                for c, raios_c in sorted(s.get("raios", {}).items()):
+                    if raios_c:
+                        st.caption(nome_cinto(c))
+                        for a, raio in sorted(raios_c.items()):
+                            st.caption(f"A{a}: {raio['rssi']:.0f} dBm → {'≥ ' if raio['limitado'] else ''}{raio['dist']:.1f} m")
+                st.markdown("**Ambiente**")
+                st.caption(f"{W:g} × {H:g} m")
+                st.caption(f"RSSI@1m {loc.RSSI_1M:g} dBm · n = {loc.N_PERDA:g} · mediana {loc.JANELA_S:g} s")
         with col_ecg:
             if s["sinal"]:
                 st.vega_lite_chart(grafico_sinal(3, "ADC (0–4095)", "ECG bruto (AD8232) - Últimos 5s", altura=380), width="stretch")
@@ -1173,8 +1177,7 @@ def atualizar_painel():
         tag = datetime.now().strftime("%Y%m%d_%H%M%S")
         cont = cx.contagens_banco()
         if cont:
-            st.caption(f"Banco {cx.db.caminho} · sessão {cx.sessao_id}: {cont['janelas']:,} janelas, "
-                       f"{cont['quedas']:,} quedas, {cont['amostras']:,} amostras gravadas".replace(",", "."))
+            st.caption(os.path.abspath(cx.db.caminho))
         with d1:
             if cont:
                 st.download_button(f"Janelas analisadas ({cont['janelas']})", cx.exportar_sessao_csv("janela"),
@@ -1227,8 +1230,7 @@ def atualizar_painel():
                                    _ler_arquivo(cx.db.caminho, st_db.st_mtime, st_db.st_size),
                                    file_name=os.path.basename(cx.db.caminho), mime="application/vnd.sqlite3",
                                    width="stretch", key="dl_bd_arquivo")
-        st.caption(f"As gravações ficam também na pasta {os.path.abspath(PASTA_GRAVACOES)}. "
-                   f"O CSV de amostras é dividido em partes (_p01, _p02, ...) a cada {ROTACAO_MIN} min.")
+        st.caption(f"{os.path.abspath(PASTA_GRAVACOES)} · arquivos divididos em partes a cada {ROTACAO_MIN} min.")
 
 
 atualizar_painel()
