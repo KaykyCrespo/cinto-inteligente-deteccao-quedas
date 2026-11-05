@@ -136,6 +136,26 @@ class Localizador:
                       "limitado": bool(bruto > dist_max())}
         return out
 
+    def estimativa_bruta(self, cinto, agora):
+        """Ponto de mínimos quadrados sem os filtros de consistência (uso visual).
+        None com menos de 2 antenas; com 2 usa o centroide ponderado."""
+        rssi = self.rssi_suavizado(cinto, agora)
+        if len(rssi) < 2:
+            return None
+        ids = sorted(rssi)
+        P = np.array([ANCHORS[i] for i in ids])
+        d = np.clip([rssi_para_dist(rssi[i]) for i in ids], 0.3, dist_max())
+        w = 1.0 / d ** 2
+        x0 = (P * w[:, None]).sum(0) / w.sum()
+        if len(ids) >= 3:
+            sol = least_squares(lambda p: np.hypot(P[:, 0] - p[0], P[:, 1] - p[1]) - d, x0,
+                                bounds=([0, 0], [LARGURA_M, ALTURA_M]))
+            x, y = sol.x
+        else:
+            x, y = np.clip(x0, [0, 0], [LARGURA_M, ALTURA_M])
+        q = quadrante(x, y)
+        return {"x": float(x), "y": float(y), "quadrante": q, "nome": QUADRANTES[q], "n_anchors": len(ids)}
+
     def estimar(self, cinto, agora):
         """Retorna uma posição com confiança qualitativa, ou None sem posição válida recente."""
         with self.lock:

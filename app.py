@@ -380,8 +380,9 @@ class Conexao:
             cintos_vistos = {c for c, _ in self.estado}
             posicoes = {c: self.loc.estimar(c, agora) for c in cintos_vistos}
             raios = {c: self.loc.raios(c, agora) for c in cintos_vistos}
+            brutas = {c: self.loc.estimativa_bruta(c, agora) for c in cintos_vistos}
             return {
-                "tabela": linhas, "melhores": melhores, "posicoes": posicoes, "raios": raios,
+                "tabela": linhas, "melhores": melhores, "posicoes": posicoes, "raios": raios, "brutas": brutas,
                 "sinal": {c: list(s) for c, s in self.sinal.items()},
                 "hist": {c: list(h) for c, h in self.hist_prob.items()},
                 "taxa": {c: tx["hz"] for c, tx in self.taxa.items()},
@@ -1064,6 +1065,12 @@ def atualizar_painel():
                     pos_rows.append({"x": p["x"], "y": p["y"], "rotulo": nome_cinto(c), "quadrante": p["nome"],
                                      "anchors": p["n_anchors"], "erro": p["erro_m"],
                                      "confianca": p["confianca"], "idade": p["idade_s"]})
+                    continue
+                b = s.get("brutas", {}).get(c)
+                if b:   # sem posição confirmada: mostra onde a matemática coloca o cinto, marcado como não confirmado
+                    pos_rows.append({"x": b["x"], "y": b["y"], "rotulo": nome_cinto(c), "quadrante": b["nome"],
+                                     "anchors": b["n_anchors"], "erro": None,
+                                     "confianca": "nao_confirmada", "idade": 0.0})
             quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
                                                if p and p["confianca"] == "boa"])
             esc_x = alt.Scale(domain=[-0.5, W + 0.5], nice=False)
@@ -1100,7 +1107,7 @@ def atualizar_painel():
                     x="x:Q", y="y:Q", order="k:Q", detail="serie:N",
                     strokeDash=alt.StrokeDash("tipo:N", title="Raio estimado",
                                               scale=alt.Scale(domain=tipos, range=[[1, 0], [6, 4]]),
-                                              legend=alt.Legend(orient="bottom", symbolStrokeColor="#f58518", symbolStrokeWidth=2)),
+                                              legend=alt.Legend(orient="right", symbolStrokeColor="#f58518", symbolStrokeWidth=2)),
                     strokeWidth=alt.StrokeWidth("tipo:N", scale=alt.Scale(domain=tipos, range=[2.5, 1.2]), legend=None),
                     opacity=alt.Opacity("tipo:N", scale=alt.Scale(domain=tipos, range=[0.95, 0.55]), legend=None),
                     tooltip=[alt.Tooltip("antena:N", title="Antena"), alt.Tooltip("tipo:N", title="Tipo"),
@@ -1108,13 +1115,15 @@ def atualizar_painel():
                              alt.Tooltip("rssi:Q", title="RSSI (dBm)", format=".0f")])
             if pos_rows:
                 pos_df = pd.DataFrame(pos_rows)
-                pos_df["legenda"] = pos_df["confianca"].map({"boa": "Cinto (posição atual)", "baixa": "Cinto (última posição, baixa confiança)"})
+                rotulos_conf = {"boa": "Cinto (posição atual)", "baixa": "Cinto (última posição, baixa confiança)",
+                                "nao_confirmada": "Cinto (estimativa não confirmada)"}
+                pos_df["legenda"] = pos_df["confianca"].map(rotulos_conf)
                 mapa += alt.Chart(pos_df).mark_point(size=300, filled=True).encode(
                     x="x:Q", y="y:Q",
                     color=alt.Color("legenda:N", title="Pessoa com o cinto",
-                                    scale=alt.Scale(domain=["Cinto (posição atual)", "Cinto (última posição, baixa confiança)"],
-                                                    range=["#4c78a8", "#e6a23c"]),
-                                    legend=alt.Legend(orient="bottom")),
+                                    scale=alt.Scale(domain=list(rotulos_conf.values()),
+                                                    range=["#4c78a8", "#e6a23c", "#9e9e9e"]),
+                                    legend=alt.Legend(orient="right")),
                     tooltip=[alt.Tooltip("rotulo:N", title="Cinto"), alt.Tooltip("quadrante:N", title="Quadrante"),
                              alt.Tooltip("x:Q", format=".1f"), alt.Tooltip("y:Q", format=".1f"),
                              alt.Tooltip("confianca:N", title="Confiança"),
@@ -1132,7 +1141,9 @@ def atualizar_painel():
                         f"A{a} {r['rssi']:.0f} dBm → {'≥ ' if r['limitado'] else ''}{r['dist']:.1f} m"
                         for a, r in sorted(raios_c.items())))
                 if not p:
-                    st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas")
+                    b = s.get("brutas", {}).get(c)
+                    extra = f" Estimativa não confirmada: {b['nome']} ({b['quadrante']})." if b else ""
+                    st.info(f"{nome_cinto(c)}: localização indisponível; aguardando leituras consistentes de 3 antenas.{extra}")
                     continue
                 with st.container(border=True):
                     st.markdown(f"**{nome_cinto(c)}** → **{p['nome']}** ({p['quadrante']})")
