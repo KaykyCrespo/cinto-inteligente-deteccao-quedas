@@ -396,19 +396,64 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 - Só ligue as duas células do cinto em paralelo se tiverem a **mesma tensão** (diferença < 0,1 V); do contrário, uma carrega a outra com corrente alta.
 - Use apenas células 18650 de procedência conhecida e sem amassados; descarte células estufadas.
 
-### 2.5 Fixação mecânica e encapsulamento
+### 2.5 Ordem de montagem
 
 **Arquivos de impressão 3D:** os moldes dos cases ficam no repositório do projeto (Seção 3.1), na pasta `impressao_3d/`, separados em `impressao_3d/cinto/` (base e tampa do case do cinto) e `impressao_3d/antena/` (base e tampa perfurada do case da antena). Basta abrir os arquivos no fatiador da impressora (por exemplo, Cura, PrusaSlicer ou Bambu Studio) e imprimir.
 
-1. **Insertos M3:** com o ferro de solda (~220 °C), pressione as roscas de latão nos furos do case até ficarem rentes à superfície. Espere esfriar antes de rosquear.
-2. **Disposição interna:** siga a Figura 3 (cinto) e a Figura 5 (antena). Prenda as baterias e as placas com fita dupla-face ou cola quente, deixando acessíveis:
+**Ferramentas:** ferro de solda e estanho, multímetro, alicate de corte e desencapador, tubos termorretráteis, fita dupla-face e cola quente, chave de fenda pequena (para o trimpot do MT3608 e os parafusos M3).
+
+**Regras de segurança durante a montagem:**
+
+- Solde sempre com as baterias **fora** do circuito; elas são as últimas a serem ligadas.
+- Confira a polaridade (+ e −) com o multímetro antes de cada ligação de energia. Bateria invertida ou em curto aquece e pode estufar.
+- Nunca encoste os terminais da bateria um no outro nem em ferramentas metálicas.
+
+**Cinto**
+
+1. **Imprimir o case** do cinto (base e tampa) e conferir se as aberturas da chave gangorra, das duas entradas USB-C e do conector P2 estão livres.
+2. **Instalar os insertos M3:** com o ferro de solda (~220 °C), pressione as roscas de latão nos furos do case até ficarem rentes à superfície. Espere esfriar antes de rosquear.
+3. **Gravar o firmware antes de montar:** com o ESP32-C3 solto, grave o `cinto_mvp_v1.ino` pela USB (Seção 3.2.4). Assim, se houver problema na gravação, a placa ainda está acessível.
+4. **Preparar as baterias:** meça a tensão das duas células 18650. Elas só podem ser ligadas em paralelo se a diferença for menor que 0,1 V; se não for, carregue a de menor tensão antes.
+5. **Ajustar o MT3608:** alimente a entrada do MT3608 com uma das baterias (ou uma fonte de 3,7 V), sem nada ligado na saída, e gire o trimpot até o multímetro marcar **5,0 V** na saída.
+6. **Montar a alimentação** (Figura 4), ainda sem as baterias:
+   - TP4056 OUT+ → chave gangorra → MT3608 VIN+;
+   - TP4056 OUT− → MT3608 VIN−;
+   - MT3608 VOUT+ → pino 5V do ESP32-C3; MT3608 VOUT− → GND do ESP32-C3;
+   - se for usar, o capacitor C1 de 470 µF entre VOUT+ e VOUT− (terminal positivo no VOUT+).
+7. **Ligar as baterias:** una as duas células em paralelo (positivo com positivo, negativo com negativo) e solde ao B+ e B− do TP4056.
+8. **Testar a alimentação:** ligue a chave e meça **5,0 V** no pino 5V e **3,3 V** no pino 3V3 do ESP32-C3. O LED da placa deve acender. Desligue a chave para continuar.
+9. **Soldar o MPU6050** (tabela da Seção 2.2): VCC → 3V3, GND → GND, SDA → GPIO 8, SCL → GPIO 9. Os pinos AD0, INT, XDA e XCL ficam sem ligação.
+10. **Soldar o AD8232:** 3.3V → 3V3, GND → GND, OUTPUT → GPIO 4, LO− → GPIO 2, LO+ → GPIO 3. O pino SDN fica sem ligação. Posicione o conector P2 alinhado com a abertura do case.
+11. **LED de eletrodo solto (opcional):** GPIO 10 → resistor de 330 Ω → ânodo do LED; cátodo do LED → GND.
+12. **Teste funcional antes de fechar:** ligue a chave e o painel no computador (Seção 5.1). Confira se uma antena conecta por GATT, se a taxa fica perto de 100 amostras/s, se a aceleração em repouso fica perto de 1 g e se o status do eletrodo muda ao conectar e soltar os eletrodos.
+13. **Isolar e fixar:** cubra as soldas com termorretrátil e prenda as placas e as baterias com fita dupla-face ou cola quente. O MPU6050 deve ficar firme, sem folga. Deixe acessíveis o USB-C do TP4056, o USB-C do ESP32-C3, o conector P2 e a chave (Figura 3).
+14. **Fechar o case** com os parafusos M3, sem apertar em excesso, e fazer o teste de carga: ligue um cabo USB-C no TP4056 e confira o LED de carga (vermelho carregando; azul ou verde quando completo).
+
+**Antena (repetir para as três unidades)**
+
+1. **Imprimir o case** da antena (base e tampa perfurada) e gravar ou etiquetar a identificação (`anchor01`, `anchor02` ou `anchor03`).
+2. **Instalar os insertos M3** como no cinto.
+3. **Gravar o firmware antes de montar:** grave o `anchor_mvp_v1.ino` com o `ID_ANTENA` igual à etiqueta do case (Seção 3.2.3).
+4. **Ajustar o MT3608** para **5,0 V**, como no passo 5 do cinto.
+5. **Montar a alimentação** (Figura 6), ainda sem a bateria:
+   - TP4056 OUT+ → chave gangorra → MT3608 VIN+;
+   - TP4056 OUT− → MT3608 VIN−;
+   - MT3608 VOUT+ → pino VIN do ESP32 DevKit; MT3608 VOUT− → GND do DevKit;
+   - capacitor C1 de 470 µF entre VOUT+ e VOUT− (recomendado na antena, por causa dos picos de corrente do Wi-Fi).
+6. **Ligar a bateria** ao B+ e B− do TP4056.
+7. **Testar:** ligue a chave e meça **5,0 V** no pino VIN; o LED de alimentação do DevKit deve acender. Com o painel aberto, a antena deve aparecer como **online** em até 10 s.
+8. **Isolar, fixar e fechar:** termorretrátil nas soldas, placas e bateria presas com fita dupla-face ou cola quente, Micro-USB do ESP32, USB-C do TP4056 e chave acessíveis pelas aberturas (Figura 5). Feche a tampa com os parafusos M3.
+
+### 2.6 Fixação mecânica e encapsulamento
+
+1. **Disposição interna:** siga a Figura 3 (cinto) e a Figura 5 (antena). Prenda as baterias e as placas com fita dupla-face ou cola quente, deixando acessíveis:
    - Cinto: USB-C do TP4056 (carga), USB-C do ESP32-C3 (gravação), conector P2 do AD8232 e a chave gangorra.
    - Antena: USB-C do TP4056, Micro-USB do ESP32 e a chave gangorra.
-3. **Isolamento:** cubra as soldas expostas com termorretrátil e garanta que nenhum terminal de bateria encoste em partes metálicas.
-4. **Fechamento:** feche a tampa com os parafusos M3, sem apertar em excesso.
-5. **Fixação do cinto:** o case vai preso ao cinto **na frente do corpo, na altura da cintura**, posição equivalente à do dataset SisFall usado no treino. O MPU6050 deve ficar firme no case, sem folga: vibração solta altera as leituras.
-6. **Fixação das antenas:** instale cada antena em parede ou suporte, **a cerca de 1 m do chão ou mais**, longe de roteadores, micro-ondas e outras fontes de 2,4 GHz, e afastadas entre si. Anote a posição (x, y) de cada uma em metros para a configuração do ambiente (Seção 5.1). As três antenas **não podem ficar alinhadas** (colineares).
-7. **Ambiente:** o protótipo é para uso **interno**; o case não é vedado contra água. Não há partes ligadas à rede elétrica; o único aterramento é o GND comum de baixa tensão de cada dispositivo.
+2. **Isolamento:** cubra as soldas expostas com termorretrátil e garanta que nenhum terminal de bateria encoste em partes metálicas.
+3. **Fechamento:** feche a tampa com os parafusos M3, sem apertar em excesso.
+4. **Fixação do cinto:** o case vai preso ao cinto **na frente do corpo, na altura da cintura**, posição equivalente à do dataset SisFall usado no treino. O MPU6050 deve ficar firme no case, sem folga: vibração solta altera as leituras.
+5. **Fixação das antenas:** instale cada antena em parede ou suporte, **a cerca de 1 m do chão ou mais**, longe de roteadores, micro-ondas e outras fontes de 2,4 GHz, e afastadas entre si. Anote a posição (x, y) de cada uma em metros para a configuração do ambiente (Seção 5.1). As três antenas **não podem ficar alinhadas** (colineares).
+6. **Ambiente:** o protótipo é para uso **interno**; o case não é vedado contra água. Não há partes ligadas à rede elétrica; o único aterramento é o GND comum de baixa tensão de cada dispositivo.
 
 ---
 
