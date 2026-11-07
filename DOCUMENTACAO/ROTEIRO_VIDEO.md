@@ -59,7 +59,7 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 **Na tela:**
 
 - `DOCUMENTACAO/esquemas/arquitetura_camadas.png`, em tela cheia. Use zoom ou um destaque em cada camada enquanto ela é citada.
-- No fim, por 5 segundos, o `fluxograma_sistema.png`.
+- No fim, por 5 segundos, o fluxograma `DOCUMENTACAO/APOIO/IMAGENS/FLUXOGRAMA.jpeg`.
 
 ---
 
@@ -78,7 +78,7 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 **Na tela:**
 
 1. **Câmera de cima** no cinto aberto, com o dedo apontando cada módulo. Se possível, ponha uma etiqueta numerada em cada um, igual à imagem do case.
-2. Ao falar dos pinos, mostre por 3 a 4 segundos o `esquema_cinto.png`, com zoom nas ligações do MPU e do AD8232.
+2. Ao falar dos pinos, mostre por 3 a 4 segundos o esquema elétrico do cinto (Seção 2.3 do manual), com zoom nas ligações do MPU e do AD8232.
 3. Ao falar da alimentação, mostre o multímetro medindo **5,0 V** na saída do MT3608. Isso comprova o barramento de alimentação, que o roteiro do curso pede.
 4. O cinto fechado sendo preso ao cinto da pessoa e a antena na parede ou no suporte.
 5. Na Arduino IDE, os `#define` do cinto: pinos e `FREQ_LEITURA_HZ`.
@@ -240,13 +240,13 @@ Na frase final, a equipe aparece junta na câmera, com o cinto e uma antena na m
 
 ## Imagens de apoio para os slides
 
-Todas estão em `DOCUMENTACAO/esquemas/` (PNG para slides e SVG para ampliar sem perder qualidade):
+Ficam em `DOCUMENTACAO/esquemas/` (PNG para slides e SVG para ampliar sem perder qualidade), exceto o fluxograma, que fica em `DOCUMENTACAO/APOIO/IMAGENS/`:
 
 | Bloco | Arquivo | Conteúdo |
 |---|---|---|
 | 3 | `arquitetura_camadas.png` | Arquitetura em 5 camadas |
-| 3 | `fluxograma_sistema.png` | Fluxo de um ciclo de leitura até o alerta |
-| 4 | `esquema_cinto.png` / `esquema_antena.png` | Esquemas elétricos |
+| 3 | `APOIO/IMAGENS/FLUXOGRAMA.jpeg` | Fluxo de um ciclo de leitura até o alerta |
+| 4 | Esquemas elétricos do cinto e da antena (em elaboração) | Ligações dos módulos |
 | 5 e 6 | `pipeline_ia.png` | Pipeline de IA: treino offline e operação em tempo real |
 | 6 | `matriz_confusao.png` | Matriz de confusão (VP, FN, FP, VN) |
 | 6 | `metricas_modelo.png` | Recall, precisão, F1, especificidade, acurácia, efeito do limiar e importância dos atributos |

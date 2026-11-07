@@ -57,9 +57,9 @@ A Figura 2 mostra o caminho de um ciclo de leitura, do sensor no cinto até o al
 
 **Figura 2 – Fluxograma do funcionamento completo do sistema**
 
-![Fluxograma do sistema](esquemas/fluxograma_sistema.png)
+![Fluxograma do sistema](APOIO/IMAGENS/FLUXOGRAMA.jpeg)
 
-Fonte: elaborado pelos autores (2026). Gerado por `DOCUMENTACAO/esquemas/gerar_fluxograma.py`.
+Fonte: elaborado pelos autores (2026).
 
 ---
 
@@ -154,30 +154,22 @@ A antena não tem sensores; só precisa de alimentação.
 
 ### 2.3 Diagrama esquemático e montagem
 
-Os esquemas foram gerados a partir da pinagem do firmware pelo script `DOCUMENTACAO/esquemas/gerar_esquemas.py`. Para regenerar após alguma mudança: `pip install schemdraw` e `python DOCUMENTACAO/esquemas/gerar_esquemas.py`. Os rótulos de rede com o mesmo nome (`+5V`, `+3V3`, `GND`, `SDA`, `SCL`, `LO-`, `LO+`, `ECG_OUT`) estão ligados entre si.
+<!-- PENDENTE: inserir aqui os novos esquemas elétricos do cinto e da antena (exigência do curso). -->
 
 **Figura 3 – Disposição dos módulos no case do cinto**
 
 ![Case do cinto](APOIO/IMAGENS/CASE%20CINTO.png)
 
-**Figura 4 – Esquema elétrico do cinto**
-
-![Esquema elétrico do cinto](esquemas/esquema_cinto.png)
-
-**Figura 5 – Disposição dos módulos no case da antena**
+**Figura 4 – Disposição dos módulos no case da antena**
 
 ![Case da antena](APOIO/IMAGENS/CASE%20ANTENA.png)
-
-**Figura 6 – Esquema elétrico da antena**
-
-![Esquema elétrico da antena](esquemas/esquema_antena.png)
 
 Fonte das figuras: elaborado pelos autores (2026).
 
 **Componentes passivos:**
 
 - **Pull-up do I²C:** o módulo GY-521 já traz resistores de pull-up em SDA e SCL; não é preciso adicionar externos.
-- **Desacoplamento:** os módulos (ESP32-C3, ESP32 DevKit, GY-521, AD8232, MT3608 e TP4056) já trazem capacitores de desacoplamento na própria placa. O capacitor C1 (470 µF/10 V) na saída do MT3608 é **recomendado** (tracejado no esquema) para absorver os picos de corrente do rádio, sobretudo na antena.
+- **Desacoplamento:** os módulos (ESP32-C3, ESP32 DevKit, GY-521, AD8232, MT3608 e TP4056) já trazem capacitores de desacoplamento na própria placa. O capacitor C1 (470 µF/10 V) na saída do MT3608 é **recomendado** para absorver os picos de corrente do rádio, sobretudo na antena.
 - **LO+ / LO−:** saídas digitais do próprio AD8232; dispensam resistores.
 - **SDN do AD8232:** fica aberto; o módulo o mantém em nível alto (ligado).
 - **R1 (330 Ω):** limita a corrente do LED opcional, calculada por
@@ -415,7 +407,7 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 3. **Gravar o firmware antes de montar:** com o ESP32-C3 solto, grave o `cinto_mvp_v1.ino` pela USB (Seção 3.2.4). Assim, se houver problema na gravação, a placa ainda está acessível.
 4. **Preparar as baterias:** meça a tensão das duas células 18650. Elas só podem ser ligadas em paralelo se a diferença for menor que 0,1 V; se não for, carregue a de menor tensão antes.
 5. **Ajustar o MT3608:** alimente a entrada do MT3608 com uma das baterias (ou uma fonte de 3,7 V), sem nada ligado na saída, e gire o trimpot até o multímetro marcar **5,0 V** na saída.
-6. **Montar a alimentação** (Figura 4), ainda sem as baterias:
+6. **Montar a alimentação** (tabela "Cinto — alimentação" da Seção 2.2), ainda sem as baterias:
    - TP4056 OUT+ → chave gangorra → MT3608 VIN+;
    - TP4056 OUT− → MT3608 VIN−;
    - MT3608 VOUT+ → pino 5V do ESP32-C3; MT3608 VOUT− → GND do ESP32-C3;
@@ -435,18 +427,18 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 2. **Instalar os insertos M3** como no cinto.
 3. **Gravar o firmware antes de montar:** grave o `anchor_mvp_v1.ino` com o `ID_ANTENA` igual à etiqueta do case (Seção 3.2.3).
 4. **Ajustar o MT3608** para **5,0 V**, como no passo 5 do cinto.
-5. **Montar a alimentação** (Figura 6), ainda sem a bateria:
+5. **Montar a alimentação** (tabela "Antena — ESP32 DevKit V1" da Seção 2.2), ainda sem a bateria:
    - TP4056 OUT+ → chave gangorra → MT3608 VIN+;
    - TP4056 OUT− → MT3608 VIN−;
    - MT3608 VOUT+ → pino VIN do ESP32 DevKit; MT3608 VOUT− → GND do DevKit;
    - capacitor C1 de 470 µF entre VOUT+ e VOUT− (recomendado na antena, por causa dos picos de corrente do Wi-Fi).
 6. **Ligar a bateria** ao B+ e B− do TP4056.
 7. **Testar:** ligue a chave e meça **5,0 V** no pino VIN; o LED de alimentação do DevKit deve acender. Com o painel aberto, a antena deve aparecer como **online** em até 10 s.
-8. **Isolar, fixar e fechar:** termorretrátil nas soldas, placas e bateria presas com fita dupla-face ou cola quente, Micro-USB do ESP32, USB-C do TP4056 e chave acessíveis pelas aberturas (Figura 5). Feche a tampa com os parafusos M3.
+8. **Isolar, fixar e fechar:** termorretrátil nas soldas, placas e bateria presas com fita dupla-face ou cola quente, Micro-USB do ESP32, USB-C do TP4056 e chave acessíveis pelas aberturas (Figura 4). Feche a tampa com os parafusos M3.
 
 ### 2.6 Fixação mecânica e encapsulamento
 
-1. **Disposição interna:** siga a Figura 3 (cinto) e a Figura 5 (antena). Prenda as baterias e as placas com fita dupla-face ou cola quente, deixando acessíveis:
+1. **Disposição interna:** siga a Figura 3 (cinto) e a Figura 4 (antena). Prenda as baterias e as placas com fita dupla-face ou cola quente, deixando acessíveis:
    - Cinto: USB-C do TP4056 (carga), USB-C do ESP32-C3 (gravação), conector P2 do AD8232 e a chave gangorra.
    - Antena: USB-C do TP4056, Micro-USB do ESP32 e a chave gangorra.
 2. **Isolamento:** cubra as soldas expostas com termorretrátil e garanta que nenhum terminal de bateria encoste em partes metálicas.
@@ -543,6 +535,8 @@ cd cinto-inteligente-deteccao-quedas
    #define MQTT_TOPIC_BASE "oqpnb/anchor"
    ```
    O IPv4 do computador aparece com `ipconfig` no PowerShell (linha **Endereço IPv4** do adaptador Wi-Fi).
+
+   > **Importante:** o computador (notebook) que roda o broker e o painel precisa estar conectado à **mesma rede Wi-Fi** configurada em `credenciais.h`. Em outra rede, as antenas não alcançam o broker e o painel mostra "Antena online, mas nenhum pacote de cinto chegou ainda. Verifique no Serial da antena se ela mostra 'GATT: CONECTADO' e 'TX MQTT' > 0.", mesmo com o cinto ligado. Se mudar de rede, ajuste `credenciais.h` e `MQTT_BROKER` e grave o firmware de novo.
 3. **Ferramentas → Placa → esp32 → ESP32 Dev Module** (ou **DOIT ESP32 DEVKIT V1**).
 4. **Ferramentas → Porta →** a COM da antena.
 5. Clique em **Carregar**. Se aparecer `Connecting....____`, segure **BOOT** até começar a gravar.
@@ -854,7 +848,7 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 
 **Ordem de partida:**
 
-1. **Computador:** confirme que o serviço Mosquitto está em execução (`Get-Service mosquitto` → `Running`) e que o Wi-Fi está conectado à mesma rede das antenas.
+1. **Computador:** confirme que o serviço Mosquitto está em execução (`Get-Service mosquitto` → `Running`) e que o Wi-Fi do computador está conectado à **mesma rede** configurada nas antenas (`credenciais.h`). Em outra rede, nenhum dado do cinto chega ao painel.
 2. **Painel:** abra o PowerShell na pasta do projeto, ative o ambiente virtual, defina as variáveis do Telegram e rode `python -m streamlit run app.py`.
 3. **Antenas:** ligue a chave gangorra das três antenas. Em até ~10 s, cada uma deve aparecer como **online** na aba **Detalhes → Status do Sistema**.
 4. **Eletrodos:** coloque os três eletrodos (RA, LA e RL) na pele limpa e seca e encaixe o cabo P2 no cinto.
@@ -942,6 +936,7 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 | MQTT | Antena com Wi-Fi conectado, mas `[MQTT] Conectando ao broker ... Falhou (rc=...)` | IP do broker errado, firewall ou listener ausente | Confira `MQTT_BROKER` com `ipconfig`; regra de firewall da porta 1883; `listener 1883 0.0.0.0`; rede como **Privada** |
 | MQTT | Painel mostra **Erro MQTT** | Mosquitto parado | `Restart-Service mosquitto` e clique em **Reconectar** |
 | MQTT | Antena oscila entre online e offline | Alimentação instável ou Wi-Fi fraco | Carregue a bateria, confira os 5,0 V do MT3608, aproxime do roteador |
+| Rede | "Antena online, mas nenhum pacote de cinto chegou ainda. Verifique no Serial da antena se ela mostra 'GATT: CONECTADO' e 'TX MQTT' > 0." com o cinto ligado e conectado | Computador em rede Wi-Fi diferente da configurada nas antenas (o "online" pode ser a mensagem retida de uma sessão anterior) | Conecte o computador à mesma rede de `credenciais.h`; confira se `MQTT_BROKER` é o IPv4 atual do computador (`ipconfig`) e grave de novo se mudou |
 | BLE | "Antena online, mas nenhum pacote de cinto chegou" | Cinto desligado, `CODIGO_AMBIENTE` diferente ou fora de alcance | Ligue o cinto; iguale o código nos dois firmwares; veja `[GATT] CONECTADO E AUTENTICADO!` no Serial da antena |
 | Perda de pacotes | Taxa bem abaixo de 100 amostras/s e "amostras perdidas" crescendo | Interferência em 2,4 GHz, cinto longe da antena GATT, rede congestionada | Afaste as antenas de roteadores e micro-ondas; aproxime o cinto; reduza outros dispositivos na rede |
 | Perda de pacotes | "Janelas reiniciadas" aumentando | Lacunas > 0,3 s no fluxo (troca de antena GATT) | Normal durante reconexões; se constante, siga o item anterior |
