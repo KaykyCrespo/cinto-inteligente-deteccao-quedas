@@ -32,7 +32,7 @@
 // IDENTIFICAÇÃO E AMBIENTE (EDITAR AQUI)
 // ============================================================
 #define CODIGO_AMBIENTE "OQPNB"
-#define ID_ANTENA       1
+#define ID_ANTENA       4
 
 // ============================================================
 // CONFIGURAÇÕES DE WI-FI E MQTT (EDITAR AQUI)
@@ -40,7 +40,7 @@
 #define WIFI_SSID       "NOME_DO_SEU_WIFI"
 #define WIFI_PASSWORD   "SENHA_DO_SEU_WIFI"
 
-#define MQTT_BROKER     "192.168.0.177" //.46 enzo .82 kayky
+#define MQTT_BROKER     "10.106.177.139" //.46 enzo .82 kayky
 #define MQTT_PORT       1883
 #define MQTT_USER       ""
 #define MQTT_PASS       ""
