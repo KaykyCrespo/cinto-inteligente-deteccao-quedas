@@ -1,4 +1,4 @@
-# Roteiro do vídeo – Cinto Inteligente OQPNB (alvo de 14 minutos e 45 segundos)
+# Roteiro do vídeo – Cinto Inteligente (alvo de 14 minutos e 45 segundos)
 
 O tempo calculado é de cerca de 140 palavras por minuto, o que dá cerca de 14 min 45 s, perto do limite de 15 minutos. Falem num ritmo firme e cortem pausas longas na edição. Todos falam ao menos uma vez e se apresentam com nome completo e função na primeira fala.
 
@@ -92,7 +92,7 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 
 > "O objetivo da IA é **classificar cada janela de movimento como possível queda ou atividade normal**. Todo o pipeline foi feito em **Python com scikit-learn**; este diagrama mostra as duas partes: o treino, feito uma vez, e a operação em tempo real.
 > Para treinar, usamos o **SisFall**, um dataset público publicado por Sucerquia e colegas em 2017. Ele tem **38 voluntários**, 23 adultos jovens e 15 idosos, com **1.798 quedas simuladas** e **2.707 atividades do dia a dia**, como andar, sentar, deitar e subir escada, gravadas com o sensor na cintura a 200 hertz.
-> Como o nosso sensor é diferente, o script de treino adapta os dados ao cinto. Ele reduz de 200 para 100 hertz, limita os valores a mais ou menos 8 g e 2000 graus por segundo e arredonda como o MPU6050 faria.
+> Como o nosso sensor é diferente, o script de treino adapta os dados ao cinto. Ele reduz de 200 para 100 hertz e limita os valores a mais ou menos 8 g e 2000 graus por segundo, as mesmas faixas do MPU6050.
 > Depois dividimos os sinais em **janelas de 2,5 segundos**, com passo de meio segundo, e chegamos a **122.572 janelas**. De cada janela extraímos **8 atributos**:
 >
 > - aceleração máxima e mínima;
@@ -110,7 +110,7 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 - **Abertura do bloco:** `DOCUMENTACAO/esquemas/pipeline_ia.png` em tela cheia. Destaque cada caixa da faixa "Treino" enquanto ela é citada.
 - Slide com os números do SisFall e um gráfico de sinal de uma queda: um pico de aceleração seguido de repouso. Dá para capturar da aba Detalhes, em "Gráficos de Sinais", durante um teste.
 - Em `features.py`, a lista `FEATURES` com os 8 atributos (linhas 32–41).
-- Em `scripts/treino_sisfall.py`, as linhas da reamostragem e da quantização.
+- Em `scripts/treino_sisfall.py`, a função `load_trial()`, com a reamostragem e a saturação.
 
 ---
 

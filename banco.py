@@ -1,5 +1,5 @@
 """
-banco.py - Persistência do monitor OQPNB em SQLite (arquivo único, sem servidor).
+banco.py - Persistência do Cinto Inteligente em SQLite (arquivo único, sem servidor).
 
 Tabelas: cinto, antena, sessao, amostra, janela, queda, status_antena.
 Escrita em lote por uma thread própria para não bloquear o callback MQTT.

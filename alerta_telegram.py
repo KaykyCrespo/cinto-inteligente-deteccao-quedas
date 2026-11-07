@@ -89,4 +89,4 @@ def mensagem_queda(cinto, quando: datetime, anchor, rssi, prob, amax, tilt, quad
 
 
 def mensagem_teste() -> str:
-    return f"✅ Teste do monitor OQPNB — {datetime.now():%d/%m/%Y %H:%M:%S}"
+    return f"✅ Teste do Cinto Inteligente — {datetime.now():%d/%m/%Y %H:%M:%S}"

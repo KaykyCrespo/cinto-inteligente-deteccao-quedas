@@ -1,9 +1,21 @@
-# OQPNB — Cinto Inteligente: detecção de queda e localização indoor (TCC MVP)
+# Cinto Inteligente: detecção de queda e localização indoor (TCC MVP)
 
 O cinto (ESP32-C3 + MPU6050 + AD8232) envia leituras cruas a 100 Hz por BLE (GATT) para uma antena,
 que repassa por MQTT. As demais antenas escutam os anúncios BLE e medem RSSI. No PC, o painel Streamlit
 monta janelas de 2,5 s, calcula 8 características, roda um Random Forest treinado no SisFall, estima o
 quadrante do ambiente, dispara alerta no Telegram e persiste tudo em SQLite.
+
+## Onde está cada documentação
+
+| Arquivo | Conteúdo |
+|---|---|
+| `README.md` (este) | Visão geral, estrutura, instalação e execução |
+| [`Arduino/README_FIRMWARE.md`](Arduino/README_FIRMWARE.md) | Firmware do cinto e da antena: protocolo BLE/MQTT, configuração, Mosquitto |
+| [`DOCUMENTACAO/README_BANCO_DE_DADOS.md`](DOCUMENTACAO/README_BANCO_DE_DADOS.md) | Banco SQLite: DER, modelos lógico e físico, dicionário de dados |
+| [`DOCUMENTACAO/Manual_Usuario_Operacao.pdf`](DOCUMENTACAO/Manual_Usuario_Operacao.pdf) | Guia do Usuário e Manual de Operação (fonte: `MANUAL_USUARIO_OPERACAO.md`) |
+| [`DOCUMENTACAO/Roteiro_Video.pdf`](DOCUMENTACAO/Roteiro_Video.pdf) | Roteiro do vídeo de apresentação (fonte: `ROTEIRO_VIDEO.md`) |
+| [`dados/SISFALL/README_ORIGEM_SISFALL.md`](dados/SISFALL/README_ORIGEM_SISFALL.md) | Nota original sobre a origem do dataset SisFall (terceiros) |
+| `dados/SISFALL/SisFall_dataset/Readme.txt` | Descrição oficial do SisFall (atividades, voluntários, sensores) |
 
 ## Estrutura do projeto
 
@@ -16,19 +28,27 @@ TCC MVP/
 ├── features.py            as 8 características (referência para treino e detecção)
 ├── interface_mvp_2.py     parser do pacote MQTT e versão do monitor em terminal
 ├── localizacao.py         RSSI -> distância -> quadrante (com confiança e retenção)
-├── requirements.txt
-├── Arduino/               firmware do cinto (cinto_mvp_v1) e da antena (anchor_mvp_v1) + bibliotecas
+├── requirements.txt       dependências do sistema
+├── requirements-docs.txt  dependências só para gerar diagramas e o manual
+├── Arduino/               firmware do cinto (cinto_mvp_v1), da antena (anchor_mvp_v1) e bibliotecas usadas
 ├── assets/                logo
+├── impressao_3d/          arquivos de impressão 3D dos cases (cinto/ e antena/)
 ├── modelos/               modelo_mvp_8g.joblib e o relatório do treino
 ├── scripts/               treino_sisfall.py, reproduzir_csv.py
 ├── tests/                 testes automatizados (localização, controle do Telegram)
 ├── dados/
 │   ├── oqpnb.db           banco SQLite (criado ao abrir o painel; ignorado pelo git)
+│   ├── ambiente.json      tamanho do ambiente e posição das antenas (salvo pelo painel)
 │   ├── gravacoes/         CSV de amostras do botão "Gravar amostras" (ignorado pelo git)
 │   ├── ensaios_rssi/      CSVs e resultados dos ensaios de calibração de RSSI
 │   └── SISFALL/           dataset público usado no treino
-├── docs/                  banco_de_dados.md (DER, modelo lógico/físico, dicionário), documentação e READMEs antigos
-└── legado/                interface antiga, teste de paridade C/Python e README do caminho cinto_v5
+└── DOCUMENTACAO/
+    ├── README_BANCO_DE_DADOS.md
+    ├── MANUAL_USUARIO_OPERACAO.md / Manual_Usuario_Operacao.pdf / .docx
+    ├── ROTEIRO_VIDEO.md / Roteiro_Video.pdf / .docx
+    ├── gerar_manual.py    gera o PDF/DOCX do manual e do roteiro
+    ├── esquemas/          diagramas (arquitetura, fluxograma, esquemas elétricos, pipeline, métricas) e seus scripts
+    └── APOIO/             material de apoio do curso e imagens dos cases
 ```
 
 Os módulos Python da raiz se importam entre si pelo nome; mantenha-os juntos. Scripts e testes
@@ -37,7 +57,13 @@ ajustam o `sys.path` sozinhos e podem ser executados de qualquer pasta.
 ## Instalação e execução
 
 ```powershell
+git clone https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas.git
+cd cinto-inteligente-deteccao-quedas
+
 pip install -r requirements.txt
+
+# só para regenerar diagramas e o manual em DOCUMENTACAO/ (exige Word instalado para o PDF)
+pip install -r requirements-docs.txt
 
 # painel (abre http://localhost:8501)
 python -m streamlit run app.py
@@ -59,7 +85,13 @@ python -m unittest discover -s tests -p "teste_*.py" -v
 ```
 
 Variáveis de ambiente opcionais: `OQPNB_BROKER`, `OQPNB_PORT`, `OQPNB_MODELO`, `OQPNB_DB`,
-`OQPNB_LADO_M`, `OQPNB_RSSI_1M`, `OQPNB_N_PERDA`, `OQPNB_OFFSET_GATT`.
+`OQPNB_LARGURA_M`, `OQPNB_ALTURA_M`, `OQPNB_RSSI_1M`, `OQPNB_N_PERDA`, `OQPNB_OFFSET_GATT`.
+O tamanho do ambiente e a posição das antenas também podem ser ajustados no painel (mapa da aba
+Detalhes); o painel salva em `dados/ambiente.json`, que tem prioridade sobre as variáveis.
+
+O código ainda traz, só para a apresentação, o token/chat do Telegram da equipe (`alerta_telegram.py`)
+e a rede Wi-Fi do laboratório (`anchor_mvp_v1.ino`). Para usar em outro lugar, defina as variáveis
+`OQPNB_TG_TOKEN`/`OQPNB_TG_CHAT` e ajuste o topo do sketch da antena.
 
 As faixas do `iniciarMPU()` no cinto (±8 g / ±2000 °/s) **precisam** ser as mesmas do modelo.
 Se mudar alguma, treine de novo com `--faixa-acc` e `--faixa-giro`.
@@ -98,4 +130,4 @@ usando o padrão de sombreamento medido.
 
 SQLite em `dados/oqpnb.db`. Janelas, quedas e status das antenas são gravados sempre; amostras
 brutas só enquanto "Gravar amostras" estiver ligado. Modelagem completa (DER, lógico, físico,
-dicionário de dados) em `docs/banco_de_dados.md`. A aba Detalhes exporta CSV por sessão e o próprio `.db`.
+dicionário de dados) em `DOCUMENTACAO/README_BANCO_DE_DADOS.md`. A aba Detalhes exporta CSV por sessão e o próprio `.db`.

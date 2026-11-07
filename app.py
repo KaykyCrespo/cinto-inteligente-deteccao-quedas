@@ -1,5 +1,5 @@
 """
-app.py - Painel web (Streamlit) do monitor OQPNB MVP.
+app.py - Painel web (Streamlit) do Cinto Inteligente (MVP).
 
 Mesma lógica da interface_mvp_2.py (pacote texto da antena + DetectorQuedaStream),
 mas mostrando tudo num navegador em vez do terminal.
@@ -627,7 +627,7 @@ def mostrar_gravacao():
 
 
 # ================= Interface =================
-st.set_page_config(page_title="Monitor OQPNB", page_icon="🩺", layout="wide")
+st.set_page_config(page_title="Cinto Inteligente", page_icon="🩺", layout="wide")
 
 with st.sidebar:
     st.html("""<style>
@@ -656,7 +656,7 @@ with st.sidebar:
     else:
         titulo_limiar = "Limiar de alarme (0 = modelo indisponível)"
     limiar = st.slider(titulo_limiar, 0.0, 1.0, 0.50, 0.05)
-    tempo_reset_alerta = st.slider("Tempo para resetar alerta (min)", 1, 5, 2, 1)
+    tempo_reset_alerta = st.slider("Tempo para resetar notificação do alerta no APP (min)", 1, 5, 2, 1)
     st.divider()
     st.header("Tela")
     auto = st.toggle("Atualizar automaticamente", value=True)

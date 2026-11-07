@@ -1,4 +1,4 @@
-# Guia do Usuário e Manual de Operação — Cinto Inteligente OQPNB
+# Guia do Usuário e Manual de Operação — Cinto Inteligente
 
 ---
 
@@ -6,22 +6,16 @@
 
 ### 1.1 Identificação
 
-| Item | Descrição |
-|---|---|
-| **Título da solução** | Cinto Inteligente com IoT e Inteligência Artificial para Monitoramento de Atividades, Sinais Vitais e Localização Indoor — Sistema de Detecção de Possíveis Quedas (OQPNB) |
-| **Vertente** | **SmartCity — Cidades Inteligentes e Infraestrutura Urbana** |
-| **Instituição / curso** | Universidade Paulista (UNIP) — Bacharelado em Ciência da Computação |
-| **Orientador** | Prof. Marco Gomes |
-| **Ano** | 2026 |
+A solução apresentada neste guia é o Cinto Inteligente com IoT e Inteligência Artificial para Monitoramento de Atividades, Sinais Vitais e Localização Indoor, um sistema de detecção de possíveis quedas desenvolvido como Trabalho de Conclusão de Curso do Bacharelado em Ciência da Computação da Universidade Paulista (UNIP), em 2026, sob orientação do Prof. Marco Gomes.
 
-**Equipe executora**
+O projeto está enquadrado na vertente SmartCity – Cidades Inteligentes e Infraestrutura Urbana.
 
-| Integrante | RA | Função no projeto |
-|---|---|---|
-| Aluisio Pereira Alves | N135891 | Pesquisador e redator |
-| Enzo Orlandi Gomes | G788EJ5 | Responsável pelo sistema embarcado |
-| Erick de Brito Carvalho | G78HED3 | Arquiteto de soluções e desenvolvedor de software |
-| Kayky Crespo dos Santos | G839226 | Product Owner, gerente de projeto e Scrum Master |
+A equipe executora é composta pelos seguintes integrantes, com as respectivas funções no projeto:
+
+- Aluisio Pereira Alves (RA N135891) – pesquisador e redator;
+- Enzo Orlandi Gomes (RA G788EJ5) – responsável pelo sistema embarcado;
+- Erick de Brito Carvalho (RA G78HED3) – arquiteto de soluções e desenvolvedor de software;
+- Kayky Crespo dos Santos (RA G839226) – Product Owner, gerente de projeto e Scrum Master.
 
 ### 1.2 Enquadramento na vertente SmartCity
 
@@ -186,7 +180,13 @@ Fonte das figuras: elaborado pelos autores (2026).
 - **Desacoplamento:** os módulos (ESP32-C3, ESP32 DevKit, GY-521, AD8232, MT3608 e TP4056) já trazem capacitores de desacoplamento na própria placa. O capacitor C1 (470 µF/10 V) na saída do MT3608 é **recomendado** (tracejado no esquema) para absorver os picos de corrente do rádio, sobretudo na antena.
 - **LO+ / LO−:** saídas digitais do próprio AD8232; dispensam resistores.
 - **SDN do AD8232:** fica aberto; o módulo o mantém em nível alto (ligado).
-- **R1 (330 Ω):** limita a corrente do LED opcional em $\frac{3{,}3 - 2{,}0}{330} \approx 4$ mA.
+- **R1 (330 Ω):** limita a corrente do LED opcional, calculada por
+
+  $$
+  I_{LED} = \frac{V_{GPIO} - V_{LED}}{R_1} = \frac{3{,}3 - 2{,}0}{330} \approx 4\ \text{mA}
+  $$
+
+  em que $I_{LED}$ é a corrente no LED (A), $V_{GPIO}$ é a tensão do pino em nível alto (3,3 V), $V_{LED}$ é a queda de tensão do LED (cerca de 2,0 V) e $R_1$ é a resistência (Ω).
 
 ### 2.4 Especificações de alimentação
 
@@ -212,17 +212,49 @@ Fonte das figuras: elaborado pelos autores (2026).
 
 Os sensores recebem 3,3 V de um regulador linear, que deixa passar a mesma corrente que recebe; por isso o total vale também para a linha de 5 V.
 
-**Por que não basta dividir capacidade por consumo:** a conta direta ($\frac{2000}{355} \approx 5{,}6$ h no cinto; $\frac{1000}{350} \approx 2{,}9$ h na antena) ignora que a bateria fornece 3,7 V e o MT3608 precisa elevá-la para 5 V. Para entregar a mesma potência, a corrente tirada da bateria é maior que a consumida pelo circuito. Por isso o cálculo é feito em potência.
+**Caminho da energia**
 
-**Cálculo da potência e da corrente na bateria**
+```
+Bateria 3,7 V → TP4056 (proteção) → chave → MT3608 (sobe para 5 V) → regulador da placa (desce para 3,3 V) → ESP32 + sensores
+```
+
+A energia passa por duas conversões, e cada uma perde uma parte. O MT3608 é um conversor chaveado que eleva a tensão com cerca de 85% de eficiência. O regulador da placa é linear: deixa passar a mesma corrente que recebe e transforma em calor a diferença de tensão (5 V − 3,3 V).
+
+**Por que não basta dividir capacidade por consumo:** a conta direta ($\frac{2000}{355} \approx 5{,}6$ h no cinto; $\frac{1000}{350} \approx 2{,}9$ h na antena) compara a capacidade da bateria, que trabalha em 3,7 V, com a corrente do circuito, que trabalha em 5 V. Ela ignora a elevação de tensão, as perdas do conversor e a parte da carga que não pode ser usada. Por isso o cálculo é feito em potência, nos passos a seguir.
+
+**Passo 1 – Potência na saída de 5 V**
 
 $$
-P_{5V} = 5\,\text{V} \cdot I_{total} \qquad
-P_{bat} = \frac{P_{5V}}{\eta} \qquad
-I_{bat} = \frac{P_{bat}}{3{,}7\,\text{V}}
+P_{5V} = V_{5V} \cdot I_{total}
 $$
 
-com eficiência do MT3608 $\eta \approx 0{,}85$ (elevando de 3,7 V para 5 V).
+em que:
+
+- $P_{5V}$ é a potência entregue ao circuito na saída do MT3608 (W);
+- $V_{5V}$ é a tensão de saída do MT3608 (5 V);
+- $I_{total}$ é a soma das correntes dos componentes (A).
+
+**Passo 2 – Potência retirada da bateria**
+
+$$
+P_{bat} = \frac{P_{5V}}{\eta}
+$$
+
+em que:
+
+- $P_{bat}$ é a potência que sai da bateria (W);
+- $\eta$ é a eficiência do MT3608 (0,85, ou seja, 85%).
+
+**Passo 3 – Corrente na bateria**
+
+$$
+I_{bat} = \frac{P_{bat}}{V_{bat}}
+$$
+
+em que:
+
+- $I_{bat}$ é a corrente retirada da bateria (A);
+- $V_{bat}$ é a tensão da bateria (3,7 V nominal; cerca de 3,3 V quando está quase vazia).
 
 | Grandeza | Cinto | Antena |
 |---|---|---|
@@ -232,48 +264,129 @@ com eficiência do MT3608 $\eta \approx 0{,}85$ (elevando de 3,7 V para 5 V).
 | $I_{bat}$ (bateria em 3,7 V) | 2,09 / 3,7 ≈ **565 mA** | 2,06 / 3,7 ≈ **556 mA** |
 | $I_{bat}$ com bateria quase vazia (3,3 V) | 2,09 / 3,3 ≈ **633 mA** | 2,06 / 3,3 ≈ **624 mA** |
 
-Essas correntes ficam bem abaixo do limite do MT3608 (chave interna de 4 A). No cinto elas se dividem entre as duas células em paralelo, cerca de 0,3 A em cada.
+A corrente na bateria (565 mA) é maior que a do circuito (355 mA) porque a bateria tem tensão menor que a saída: para entregar a mesma potência, ela precisa fornecer mais corrente e ainda cobrir a perda do conversor. À medida que a bateria descarrega, a tensão cai e a corrente sobe. Essas correntes ficam bem abaixo do limite do MT3608 (chave interna de 4 A). No cinto, elas se dividem entre as duas células em paralelo, cerca de 0,3 A em cada.
 
 **Autonomia**
 
+**Passo 1 – Energia armazenada**
+
 $$
-t = \frac{n \cdot C \cdot 3{,}7\,\text{V} \cdot 0{,}9}{P_{bat}}
+E = n \cdot C \cdot V_{bat}
 $$
 
-em que $n$ é o número de células, $C$ a capacidade de cada uma (Ah) e 0,9 a fração útil da carga (o DW01A corta a descarga perto de 2,5 V).
+em que:
 
-| Dispositivo | Baterias | Energia útil | $P_{bat}$ | **Autonomia** |
-|---|---|---|---|---|
-| Cinto | 2 × 1000 mAh em paralelo | 2 × 1,0 × 3,7 × 0,9 = 6,66 Wh | 2,09 W | **≈ 3,2 h (3 h 10 min)** |
-| Antena | 1 × 1000 mAh | 1 × 1,0 × 3,7 × 0,9 = 3,33 Wh | 2,06 W | **≈ 1,6 h (1 h 35 min)** |
+- $E$ é a energia nominal armazenada (Wh);
+- $n$ é o número de baterias;
+- $C$ é a capacidade de cada bateria (Ah; 1000 mAh = 1,0 Ah);
+- $V_{bat}$ é a tensão nominal da bateria (3,7 V).
 
-Cálculo do cinto: $t = \frac{2 \cdot 1{,}0 \cdot 3{,}7 \cdot 0{,}9}{2{,}09} \approx 3{,}2$ h.
-Cálculo da antena: $t = \frac{1 \cdot 1{,}0 \cdot 3{,}7 \cdot 0{,}9}{2{,}06} \approx 1{,}6$ h.
+**Passo 2 – Energia útil**
+
+$$
+E_{útil} = E \cdot f_{u}
+$$
+
+em que:
+
+- $E_{útil}$ é a energia que pode ser usada antes do corte de proteção (Wh);
+- $f_{u}$ é a fração útil da carga (0,9), porque o circuito de proteção do TP4056 desliga a bateria perto de 2,5 V, antes de ela esvaziar totalmente.
+
+**Passo 3 – Tempo de funcionamento**
+
+$$
+t = \frac{E_{útil}}{P_{bat}}
+$$
+
+em que:
+
+- $t$ é a autonomia (h);
+- $P_{bat}$ é a potência retirada da bateria, calculada acima (W).
+
+| Dispositivo | Baterias | Energia nominal | Energia útil | $P_{bat}$ | **Autonomia** |
+|---|---|---|---|---|---|
+| Cinto | 2 × 1000 mAh em paralelo | 2 × 1,0 × 3,7 = 7,4 Wh | 7,4 × 0,9 = 6,66 Wh | 2,09 W | **6,66 / 2,09 ≈ 3,19 h (3 h 11 min)** |
+| Antena | 1 × 1000 mAh | 1 × 1,0 × 3,7 = 3,7 Wh | 3,7 × 0,9 = 3,33 Wh | 2,06 W | **3,33 / 2,06 ≈ 1,62 h (1 h 37 min)** |
+
+A conversão para minutos usa a parte decimal: 0,19 h × 60 ≈ 11 min e 0,62 h × 60 ≈ 37 min.
+
+**Conferência em mAh:** a mesma autonomia sai dividindo a capacidade útil pela corrente na bateria.
+
+$$
+t = \frac{n \cdot C_{mAh} \cdot f_{u}}{I_{bat}}
+$$
+
+em que $C_{mAh}$ é a capacidade de cada bateria em mAh e $I_{bat}$ é a corrente na bateria em mA. Para o cinto: 2 × 1000 × 0,9 = 1800 mAh; 1800 ÷ 565 ≈ 3,19 h. Para a antena: 1000 × 0,9 = 900 mAh; 900 ÷ 556 ≈ 1,62 h. Os dois métodos dão o mesmo resultado.
 
 Como os 350 mA do ESP32 são um valor de pior caso, a autonomia real tende a ser **maior** que a calculada. Para sessões longas, deixe as antenas no carregador USB-C: o TP4056 alimenta o circuito enquanto carrega.
 
-**Tempo de recarga** (TP4056 a 1 A, com ~20% a mais pela fase de tensão constante):
+**Tempo de recarga**
+
+O TP4056 carrega em duas fases. Na fase de corrente constante (CC), aplica 1 A até a bateria chegar a 4,2 V, o que enche cerca de 80% da carga. Na fase de tensão constante (CV), mantém 4,2 V enquanto a corrente cai até cerca de 100 mA, quando a carga termina. Como a fase CV é lenta, acrescenta-se cerca de 20% ao tempo:
 
 $$
-t_{carga} \approx 1{,}2 \cdot \frac{n \cdot C}{1\,\text{A}}
+t_{carga} \approx k \cdot \frac{n \cdot C}{I_{carga}}
 $$
+
+em que:
+
+- $t_{carga}$ é o tempo de recarga (h);
+- $k$ é o fator da fase de tensão constante (1,2);
+- $n$ é o número de baterias;
+- $C$ é a capacidade de cada bateria (Ah);
+- $I_{carga}$ é a corrente de carga do TP4056 (1 A).
 
 | Dispositivo | Cálculo | Tempo de recarga |
 |---|---|---|
-| Cinto (2 × 1000 mAh) | 1,2 × 2,0 Ah / 1 A | **≈ 2,4 h** |
-| Antena (1 × 1000 mAh) | 1,2 × 1,0 Ah / 1 A | **≈ 1,2 h** |
+| Cinto (2 × 1000 mAh) | 1,2 × 2,0 Ah / 1 A | **≈ 2,4 h (2 h 24 min)** |
+| Antena (1 × 1000 mAh) | 1,2 × 1,0 Ah / 1 A | **≈ 1,2 h (1 h 12 min)** |
 
-Com o dispositivo ligado durante a carga, parte da corrente vai para o circuito e a recarga demora mais. Na antena, 1 A equivale a 1C para uma célula de 1000 mAh; confira se a célula aceita essa corrente de carga.
+**Recarga com o aparelho ligado:** o TP4056 entrega no máximo 1 A no total, e parte dessa corrente vai para o circuito. No cinto, o circuito consome cerca de 0,565 A, então sobram 1 − 0,565 ≈ 0,44 A para a bateria, e o tempo passa a ser $1{,}2 \times \frac{2{,}0}{0{,}44} \approx 5{,}5$ h, mais que o dobro. Na antena, 1 A equivale a 1C para uma célula de 1000 mAh; confira se a célula aceita essa corrente de carga.
 
-**Validação na bancada:** para confirmar os valores, ligue o multímetro (escala de A) em série entre a bateria e o B+ do TP4056, com o dispositivo em operação normal, e substitua $I_{bat}$ medido nas fórmulas acima.
+**Validação na bancada:** para confirmar os valores, ligue o multímetro (escala de A) em série entre o polo positivo da bateria e o B+ do TP4056, com o dispositivo em operação normal, anote a corrente média e substitua esse $I_{bat}$ medido na fórmula de conferência em mAh.
 
 **Dissipação térmica**
 
+TP4056 durante a carga (carregador linear):
+
+$$
+P_{TP4056} = (V_{USB} - V_{bat}) \cdot I_{carga}
+$$
+
+em que $P_{TP4056}$ é a potência transformada em calor no TP4056 (W), $V_{USB}$ é a tensão da USB (5 V), $V_{bat}$ é a tensão da bateria naquele momento (V) e $I_{carga}$ é a corrente de carga (1 A).
+
+MT3608 durante o uso:
+
+$$
+P_{MT3608} = P_{bat} - P_{5V}
+$$
+
+em que $P_{MT3608}$ é a perda no conversor (W), $P_{bat}$ é a potência que sai da bateria e $P_{5V}$ é a potência entregue em 5 V.
+
+Regulador de 3,3 V da placa durante o uso (regulador linear):
+
+$$
+P_{reg} = (V_{5V} - V_{3V3}) \cdot I_{total}
+$$
+
+em que $P_{reg}$ é a potência transformada em calor no regulador (W), $V_{5V}$ é a tensão de entrada (5 V), $V_{3V3}$ é a tensão de saída (3,3 V) e $I_{total}$ é a corrente do circuito (A).
+
 | Componente | Cálculo | Potência dissipada | Observação |
 |---|---|---|---|
-| TP4056 (início da carga) | (5 − 3,7) V × 1 A | ≈ 1,3 W | Componente mais quente; o chip reduz a corrente sozinho se esquentar demais |
-| MT3608 | $P_{bat} - P_{5V}$ | ≈ 0,31 W (cinto e antena) | Morno; manter folga no case |
-| Regulador 3,3 V da placa | (5 − 3,3) V × $I_{total}$ | ≈ 0,60 W (cinto e antena) | Aquece; a tampa perfurada da antena ajuda a ventilar |
+| TP4056 (meio da carga) | (5 − 3,7) V × 1 A | ≈ 1,3 W | Componente mais quente; o chip reduz a corrente sozinho se esquentar demais |
+| TP4056 (início, bateria vazia em 3,0 V) | (5 − 3,0) V × 1 A | ≈ 2,0 W | Pior momento da carga |
+| MT3608 | 2,09 − 1,78 (cinto); 2,06 − 1,75 (antena) | ≈ 0,31 W | Morno; manter folga no case |
+| Regulador 3,3 V da placa | 1,7 × 0,355 (cinto); 1,7 × 0,350 (antena) | ≈ 0,60 W | Aquece; a tampa perfurada da antena ajuda a ventilar |
+
+O aquecimento de cada componente pode ser estimado por
+
+$$
+\Delta T = P \cdot \theta_{JA}
+$$
+
+em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a potência dissipada no componente (W) e $\theta_{JA}$ é a resistência térmica do encapsulamento ao ar (°C/W, informada na folha de dados). No regulador do DevKit, com $\theta_{JA}$ entre 60 e 90 °C/W, 0,60 W resultam em 36 a 54 °C acima do ambiente. O regulador do ESP32-C3 Super Mini é menor e esquentaria demais se o consumo fosse realmente 350 mA o tempo todo, o que reforça que esse valor é de pico e que a medição deve indicar consumo menor.
+
+**Para onde vai a energia do cinto:** dos 2,09 W retirados da bateria, cerca de 1,17 W (3,3 V × 0,355 A, 56%) são usados pelo ESP32 e pelos sensores, 0,60 W (29%) viram calor no regulador de 3,3 V e 0,31 W (15%) viram calor no MT3608. Quase metade da energia é perdida nas duas conversões (3,7 V → 5 V → 3,3 V); uma melhoria futura seria alimentar o circuito direto em 3,3 V a partir da bateria, com um regulador de baixa queda, sem passar pelos 5 V.
 
 **Ajuste do MT3608 (obrigatório antes de ligar o ESP32):** com o ESP32 desconectado, alimente o MT3608 e gire o trimpot até ler **5,0 V** na saída com o multímetro. Sem esse ajuste, a saída pode passar de 5 V e danificar a placa.
 
@@ -284,6 +397,8 @@ Com o dispositivo ligado durante a carga, parte da corrente vai para o circuito 
 - Use apenas células 18650 de procedência conhecida e sem amassados; descarte células estufadas.
 
 ### 2.5 Fixação mecânica e encapsulamento
+
+**Arquivos de impressão 3D:** os moldes dos cases ficam no repositório do projeto (Seção 3.1), na pasta `impressao_3d/`, separados em `impressao_3d/cinto/` (base e tampa do case do cinto) e `impressao_3d/antena/` (base e tampa perfurada do case da antena). Basta abrir os arquivos no fatiador da impressora (por exemplo, Cura, PrusaSlicer ou Bambu Studio) e imprimir.
 
 1. **Insertos M3:** com o ferro de solda (~220 °C), pressione as roscas de latão nos furos do case até ficarem rentes à superfície. Espere esfriar antes de rosquear.
 2. **Disposição interna:** siga a Figura 3 (cinto) e a Figura 5 (antena). Prenda as baterias e as placas com fita dupla-face ou cola quente, deixando acessíveis:
@@ -300,6 +415,13 @@ Com o dispositivo ligado durante a carga, parte da corrente vai para o circuito 
 ## Seção 3 — Guia de Instalação e Configuração do Software
 
 ### 3.1 Requisitos mínimos
+
+**Obtenção do projeto:** todo o material do sistema está em um único repositório no GitHub, <https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas>: código do painel e do backend, firmware do cinto e das antenas, bibliotecas Arduino usadas, modelo de IA treinado, moldes de impressão 3D dos cases (`impressao_3d/`), documentação e o arquivo `requirements.txt` com as dependências Python. Para baixar, use o botão **Code → Download ZIP** na página do repositório e descompacte, ou, com o Git instalado:
+
+```powershell
+git clone https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas.git
+cd cinto-inteligente-deteccao-quedas
+```
 
 | Item | Versão / requisito |
 |---|---|
@@ -430,24 +552,38 @@ Uma antena por vez se conecta por GATT e repassa os sensores; as outras medem o 
 
 #### 3.3.2 Backend Python
 
-```powershell
-cd "<pasta do projeto>\TCC MVP"
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+O repositório já traz o arquivo `requirements.txt`, que lista todas as bibliotecas Python do sistema com as versões exatas (tabela da Seção 3.1). Não é preciso instalar uma por uma: um único comando instala todas as dependências.
 
-Para validar a instalação, rode os testes automatizados:
+1. **Instale o Python** 3.12 ou superior em <https://www.python.org/downloads/>. Na primeira tela do instalador, marque **Add python.exe to PATH**.
+2. **Abra o PowerShell na pasta do projeto** (no Explorador de Arquivos, abra a pasta, clique na barra de endereço, digite `powershell` e pressione Enter).
+3. **Crie e ative um ambiente virtual** (recomendado, para não misturar com outras instalações do computador):
 
-```powershell
-python -m unittest discover -s tests -p "teste_*.py" -v
-```
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+   Se o PowerShell bloquear a ativação, rode antes `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` e confirme.
+4. **Instale as dependências com um único comando:**
+
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+   O `pip` lê o `requirements.txt` e baixa todas as bibliotecas nas versões indicadas.
+5. **Valide a instalação** rodando os testes automatizados; o resultado esperado é `OK`:
+
+   ```powershell
+   python -m unittest discover -s tests -p "teste_*.py" -v
+   ```
+
+O arquivo `requirements-docs.txt` traz dependências opcionais, usadas apenas para regenerar os diagramas e este manual (`pip install -r requirements-docs.txt`); não é necessário para operar o sistema.
 
 #### 3.3.3 Banco de dados
 
 - Usa **SQLite**, sem servidor a instalar. O arquivo `dados/oqpnb.db` e as 7 tabelas (`cinto`, `antena`, `sessao`, `amostra`, `janela`, `queda`, `status_antena`) são criados **automaticamente** por `banco.py` (`CREATE TABLE IF NOT EXISTS`) na primeira abertura do painel. Não há migração manual.
 - O banco funciona em modo WAL e grava em lotes por uma thread dedicada. Os horários ficam em UTC (ISO-8601).
-- O DER, os modelos lógico e físico e o dicionário de dados estão em `docs/banco_de_dados.md`.
+- O DER, os modelos lógico e físico e o dicionário de dados estão em `DOCUMENTACAO/README_BANCO_DE_DADOS.md`.
 
 #### 3.3.4 Variáveis de ambiente
 
@@ -483,11 +619,45 @@ $env:OQPNB_TG_CHAT  = "<chat_id>"
 
 > **Credenciais no código (versão de apresentação):** para a demonstração, `alerta_telegram.py` traz como valor padrão o token do bot e o chat ID da equipe, e `anchor_mvp_v1.ino` traz a rede Wi-Fi do laboratório. Esses valores serão removidos após a apresentação. Quem for instalar o sistema deve **criar o próprio bot** (passo a passo abaixo) e definir `OQPNB_TG_TOKEN` e `OQPNB_TG_CHAT`: as variáveis de ambiente têm prioridade sobre os valores do código. Em nenhuma hipótese publique tokens e senhas reais em repositórios ou arquivos versionados.
 
-**Como obter o token e o chat ID do Telegram:**
+**Como criar o bot do Telegram e obter o token e o chat ID**
 
-1. No Telegram, converse com **@BotFather**, envie `/newbot` e siga as instruções. Guarde o token.
-2. Abra o bot criado e envie qualquer mensagem (ex.: `/start`).
-3. No navegador, acesse `https://api.telegram.org/bot<TOKEN>/getUpdates` e copie o valor de `"chat":{"id": ...}`.
+O alerta de queda é enviado por um bot do Telegram. São necessários dois dados: o **token** (a chave de acesso do bot à API do Telegram) e o **chat ID** (o identificador da conversa que vai receber os alertas).
+
+Parte A – Criar o bot e obter o token:
+
+1. Instale o Telegram no celular ou no computador e entre com a sua conta.
+2. Na busca, procure por **@BotFather** (conta oficial do Telegram, com selo azul de verificação) e abra a conversa.
+3. Toque em **Iniciar** (ou envie `/start`) e depois envie o comando `/newbot`.
+4. O BotFather pede o **nome de exibição** do bot. Envie, por exemplo, `Alerta Cinto Inteligente`.
+5. Em seguida, ele pede o **nome de usuário** do bot, que deve ser único e terminar em `bot`. Envie, por exemplo, `cinto_inteligente_alerta_bot`. Se o nome já existir, tente outro.
+6. O BotFather responde com a mensagem *"Use this token to access the HTTP API"*, seguida do **token**, no formato `123456789:ABCdefGhIJKlmNoPQRstuVWxyz`. Copie e guarde esse valor: ele é o `OQPNB_TG_TOKEN`.
+7. Trate o token como uma senha. Se ele for exposto, gere um novo no BotFather com o comando `/revoke`, escolha o bot e atualize a variável.
+
+Parte B – Obter o chat ID:
+
+1. Na mesma resposta, o BotFather envia o link do bot (`t.me/<nome_de_usuário>`). Abra o link, toque em **Iniciar** e envie qualquer mensagem, por exemplo `oi`. Esse passo é obrigatório: um bot não pode iniciar uma conversa, só responder a quem já falou com ele.
+2. No navegador, acesse o endereço abaixo, trocando `<TOKEN>` pelo token da Parte A (sem os sinais `<` e `>`):
+
+   ```
+   https://api.telegram.org/bot<TOKEN>/getUpdates
+   ```
+
+3. A página mostra um texto em formato JSON. Procure o trecho `"chat":{"id":123456789, ...}`. O número após `"id":` é o **chat ID**, que vai em `OQPNB_TG_CHAT`.
+4. Se aparecer apenas `{"ok":true,"result":[]}`, a mensagem ainda não chegou: envie outra mensagem ao bot e recarregue a página.
+5. Para enviar os alertas a um **grupo** (por exemplo, toda a equipe de cuidado): crie o grupo, adicione o bot como membro, envie uma mensagem no grupo mencionando o bot (`@cinto_inteligente_alerta_bot oi`) e repita os passos 2 e 3. O chat ID de grupo é **negativo** (por exemplo, `-1001234567890`) e deve ser usado com o sinal de menos.
+
+Parte C – Configurar e testar:
+
+1. No PowerShell que vai abrir o painel, defina as variáveis:
+
+   ```powershell
+   $env:OQPNB_TG_TOKEN = "<token da Parte A>"
+   $env:OQPNB_TG_CHAT  = "<chat ID da Parte B>"
+   ```
+
+   Para gravar as variáveis de forma permanente no usuário do Windows, use `setx OQPNB_TG_TOKEN "<token>"` e `setx OQPNB_TG_CHAT "<chat ID>"`. Essas variáveis só valem para as janelas do PowerShell abertas depois do comando.
+2. Abra o painel (`python -m streamlit run app.py`). Na barra lateral, a opção **Enviar alerta de quedas** fica habilitada.
+3. Clique em **Testar envio**. O bot deve enviar a mensagem "✅ Teste do Cinto Inteligente" com a data e a hora. Se aparecer erro, consulte a Seção 5.3 (erros 401, 403 e 404 do Telegram).
 
 ### 3.4 Aplicação cliente (painel)
 
@@ -529,7 +699,7 @@ A IA faz **classificação binária supervisionada** de janelas de movimento: pa
 
 1. Conversão das contagens do SisFall para g e °/s.
 2. **Reamostragem de 200 Hz para 100 Hz**, a taxa do cinto.
-3. **Simulação do sensor do cinto:** saturação em ±8 g / ±2000 °/s e quantização para int16, como o MPU6050 entrega.
+3. **Simulação do sensor do cinto:** saturação em ±8 g / ±2000 °/s, as mesmas faixas configuradas no MPU6050.
 4. **Janelamento:** janelas de 2,5 s com passo de 0,5 s. Nos registros de queda, entram como positivas as janelas que contêm o impacto.
 
 **Engenharia de atributos** (`features.py`, a mesma função no treino e na operação). O uso de magnitudes torna os atributos independentes da orientação do sensor, o que dispensa normalização adicional:
@@ -590,6 +760,8 @@ As métricas são calculadas **por registro**: um registro de queda conta como d
 | Precisão | VP / (VP + FP) | **93,3%** |
 | F1-score | 2·P·R / (P + R) | **96,0%** |
 | Acurácia | (VP + VN) / total | **96,7%** |
+
+em que VP (verdadeiros positivos) são quedas detectadas como queda; FN (falsos negativos) são quedas não detectadas; FP (falsos positivos) são atividades normais que geraram alarme; VN (verdadeiros negativos) são atividades normais sem alarme; P é a precisão; R é a revocação; e total é a soma VP + FN + FP + VN (4.505 registros).
 
 **Sensibilidade por fold:** 96,8% · 98,1% · 100% · 100% · 99,5%. **Especificidade por fold:** 96,3% · 94,8% · 97,4% · 94,2% · 93,6%.
 
@@ -667,10 +839,12 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 2. Na barra lateral, clique em **Gravar amostras** por ~60 s e depois em **Parar gravação**.
 3. Calcule a mediana do RSSI dessa antena no CSV de `dados/gravacoes/`. Esse é o $RSSI_{1m}$ → `OQPNB_RSSI_1M`.
 4. Repita a 2, 3 e 5 m e estime o expoente de perda:
+
    $$
-   n = \frac{RSSI_{1m} - RSSI_{d}}{10 \log_{10} d}
+   n_{perda} = \frac{RSSI_{1m} - RSSI_{d}}{10 \log_{10} d}
    $$
-   → `OQPNB_N_PERDA` (valores típicos em ambiente interno: 1,6 a 3,3).
+
+   em que $n_{perda}$ é o expoente de perda do ambiente (adimensional), $RSSI_{1m}$ é a mediana do RSSI medida a 1 m (dBm), $RSSI_{d}$ é a mediana do RSSI medida à distância $d$ (dBm) e $d$ é a distância entre o cinto e a antena (m). O resultado vai em `OQPNB_N_PERDA` (valores típicos em ambiente interno: 1,6 a 3,3).
 5. Reinicie o painel com as novas variáveis.
 
 ### 5.2 Operação diária

@@ -29,14 +29,14 @@ from sklearn.model_selection import GroupKFold
 import joblib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from features import (NAMES, tamanhos, window_features, quantize, sliding_windows)
+from features import (NAMES, tamanhos, window_features, sliding_windows)
 
 ACC_K = (2 * 16) / 2 ** 13       # ADXL345: ±16 g, 13 bits
 GYR_K = (2 * 2000) / 2 ** 16     # ITG3200: ±2000 °/s, 16 bits
 NUM = re.compile(r"-?\d+")
 
 
-CFG = {"fs": 50, "acc": 8.0, "gyr": 2000.0, "quantizar": True}
+CFG = {"fs": 100, "acc": 8.0, "gyr": 2000.0}
 
 
 def load_trial(path):
@@ -68,10 +68,6 @@ def fall_windows(acc, gyr):
             yield window_features(acc[s:s + win], gyr[s:s + win], fs)
 
 
-def q(v):
-    return quantize(v) if CFG["quantizar"] else v
-
-
 def build_dataset(root):
     X, y, grp, trial_id, train_mask = [], [], [], [], []
     trials = []  # (trial_idx, subject, is_fall, activity, runtime windows)
@@ -85,11 +81,11 @@ def build_dataset(root):
         if len(acc) < tamanhos(CFG["fs"])[0]:
             continue
         # janelas como em tempo real (passo 0,5 s) -> usadas na avaliação por evento
-        rt = np.array([q(v) for _, v in sliding_windows(acc, gyr, CFG["fs"])])
+        rt = np.array([v for _, v in sliding_windows(acc, gyr, CFG["fs"])])
         trials.append((t, subj, is_fall, act, rt))
         feats = list(fall_windows(acc, gyr)) if is_fall else list(rt)
         for v in feats:
-            X.append(q(v)); y.append(int(is_fall)); grp.append(subj); trial_id.append(t)
+            X.append(v); y.append(int(is_fall)); grp.append(subj); trial_id.append(t)
         if t % 200 == 0:
             print(f"  {t}/{len(files)} arquivos...", flush=True)
     return np.array(X), np.array(y), np.array(grp), np.array(trial_id), trials
@@ -123,7 +119,7 @@ def main():
     ap.add_argument("--faixa-acc", type=float, default=8.0, help="faixa do acelerômetro em g (2, 4, 8, 16)")
     ap.add_argument("--faixa-giro", type=float, default=2000.0, help="faixa do giroscópio em °/s (250, 500, 1000, 2000)")
     a = ap.parse_args()
-    CFG.update(fs=a.fs, acc=a.faixa_acc, gyr=a.faixa_giro, quantizar=(a.fs == 50))
+    CFG.update(fs=a.fs, acc=a.faixa_acc, gyr=a.faixa_giro)
     print(f"Configuração: {a.fs} Hz, ±{a.faixa_acc:g} g, ±{a.faixa_giro:g} °/s")
 
     print("Lendo SisFall...")
