@@ -89,9 +89,10 @@ Variáveis de ambiente opcionais: `OQPNB_BROKER`, `OQPNB_PORT`, `OQPNB_MODELO`, 
 O tamanho do ambiente e a posição das antenas também podem ser ajustados no painel (mapa da aba
 Detalhes); o painel salva em `dados/ambiente.json`, que tem prioridade sobre as variáveis.
 
-O código ainda traz, só para a apresentação, o token/chat do Telegram da equipe (`alerta_telegram.py`)
-e a rede Wi-Fi do laboratório (`anchor_mvp_v1.ino`). Para usar em outro lugar, defina as variáveis
-`OQPNB_TG_TOKEN`/`OQPNB_TG_CHAT` e ajuste o topo do sketch da antena.
+Credenciais nunca ficam no código versionado: o token e o chat do Telegram vêm das variáveis
+`OQPNB_TG_TOKEN`/`OQPNB_TG_CHAT` ou do arquivo local `segredos.env` (copie de `segredos.env.exemplo`),
+e o Wi-Fi das antenas vem de `Arduino/anchor_mvp_v1/credenciais.h` (copie de `credenciais_exemplo.h`).
+Os dois arquivos são ignorados pelo git.
 
 As faixas do `iniciarMPU()` no cinto (±8 g / ±2000 °/s) **precisam** ser as mesmas do modelo.
 Se mudar alguma, treine de novo com `--faixa-acc` e `--faixa-giro`.

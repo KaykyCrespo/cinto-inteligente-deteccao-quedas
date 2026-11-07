@@ -1,7 +1,8 @@
 """
 alerta_telegram.py - Envio de alerta de queda via bot do Telegram.
 
-Configuração (variáveis de ambiente, nunca no código/git):
+Configuração (nunca no código/git), por variáveis de ambiente ou pelo arquivo local
+`segredos.env` na raiz do projeto (ignorado pelo git; modelo em `segredos.env.exemplo`):
     OQPNB_TG_TOKEN  token do bot (BotFather)
     OQPNB_TG_CHAT   chat_id do destinatário (pessoa: positivo; grupo: negativo)
 
@@ -20,6 +21,23 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
+ARQUIVO_SEGREDOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "segredos.env")
+
+
+def _carregar_segredos_locais(caminho=ARQUIVO_SEGREDOS):
+    """Lê CHAVE=valor do arquivo local; variáveis já definidas no ambiente têm prioridade."""
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            for linha in f:
+                linha = linha.strip()
+                if linha and not linha.startswith("#") and "=" in linha:
+                    chave, valor = linha.split("=", 1)
+                    os.environ.setdefault(chave.strip(), valor.strip().strip('"'))
+    except OSError:
+        pass
+
+
+_carregar_segredos_locais()
 TOKEN = os.environ.get("OQPNB_TG_TOKEN", "").strip()
 CHAT_ID = os.environ.get("OQPNB_TG_CHAT", "").strip()
 TIMEOUT_S = 5
@@ -76,15 +94,14 @@ def enviar(texto: str, callback=None, permitido=None):
 
 
 def mensagem_queda(cinto, quando: datetime, anchor, rssi, prob, amax, tilt, quadrante=None) -> str:
-    local = f"mais perto da Anchor {anchor}" if anchor is not None else "localização indisponível"
-    if rssi is not None:
-        local += f" ({rssi:.0f} dBm)"
-    if quadrante:
-        local = f"quadrante {quadrante}, " + local
+    antena = f"Antena {anchor}" if anchor is not None else "indisponível"
+    if anchor is not None and rssi is not None:
+        antena += f" ({rssi:.0f} dBm)"
     return ("🚨 QUEDA DETECTADA\n"
             f"Cinto: {cinto}\n"
             f"Hora: {quando:%d/%m/%Y %H:%M:%S}\n"
-            f"Local: {local}\n"
+            f"Antena mais perto: {antena}\n"
+            f"Quadrante: {quadrante or 'indisponível'}\n"
             f"Confiança: {prob:.1%}  |  pico {amax:.1f} g, inclinação {tilt:.0f}°")
 
 

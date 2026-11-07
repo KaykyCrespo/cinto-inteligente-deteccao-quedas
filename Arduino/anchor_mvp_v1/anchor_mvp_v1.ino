@@ -37,8 +37,13 @@
 // ============================================================
 // CONFIGURAÇÕES DE WI-FI E MQTT (EDITAR AQUI)
 // ============================================================
+// Wi-Fi real fica em credenciais.h (fora do git; modelo em credenciais_exemplo.h)
+#if __has_include("credenciais.h")
+#include "credenciais.h"
+#else
 #define WIFI_SSID       "NOME_DO_SEU_WIFI"
 #define WIFI_PASSWORD   "SENHA_DO_SEU_WIFI"
+#endif
 
 #define MQTT_BROKER     "10.106.177.139" //.46 enzo .82 kayky
 #define MQTT_PORT       1883

@@ -15,3 +15,10 @@ dados/gravacoes/*.csv
 .idea/
 Thumbs.db
 .DS_Store
+
+# Credenciais locais (modelos versionados: segredos.env.exemplo e credenciais_exemplo.h)
+segredos.env
+Arduino/**/credenciais.h
+
+# Arquivos temporários do Word
+~$*

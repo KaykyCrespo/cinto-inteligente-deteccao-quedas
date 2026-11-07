@@ -526,12 +526,16 @@ cd cinto-inteligente-deteccao-quedas
 
 #### 3.2.3 Configurar e gravar o firmware da antena (`Arduino/anchor_mvp_v1/anchor_mvp_v1.ino`)
 
-1. Abra o sketch e edite o topo do arquivo. **O código vem com a rede Wi-Fi e o IP do broker usados pela equipe no laboratório.** Para usar em outro local, substitua `WIFI_SSID`, `WIFI_PASSWORD` e `MQTT_BROKER` pelos dados da sua rede:
+1. **Configure o Wi-Fi em um arquivo local:** na pasta `Arduino/anchor_mvp_v1/`, copie `credenciais_exemplo.h` para `credenciais.h` e preencha com a rede 2,4 GHz:
+   ```cpp
+   #define WIFI_SSID       "<nome da rede 2,4 GHz>"
+   #define WIFI_PASSWORD   "<senha da rede>"
+   ```
+   O `credenciais.h` é ignorado pelo git, então a senha não vai para o repositório. Se ele não existir, o sketch compila com valores de exemplo e a antena não conecta ao Wi-Fi.
+2. Abra o sketch e confira o topo do arquivo, ajustando o número da antena e o IP do broker:
    ```cpp
    #define CODIGO_AMBIENTE "OQPNB"          // igual ao do cinto
    #define ID_ANTENA       1                // 1, 2 ou 3 (um por placa; igual à etiqueta do case)
-   #define WIFI_SSID       "<nome da rede 2,4 GHz>"
-   #define WIFI_PASSWORD   "<senha da rede>"
    #define MQTT_BROKER     "<IPv4 do computador central>"
    #define MQTT_PORT       1883
    #define MQTT_USER       ""               // vazio: broker sem autenticação (rede local)
@@ -539,11 +543,11 @@ cd cinto-inteligente-deteccao-quedas
    #define MQTT_TOPIC_BASE "oqpnb/anchor"
    ```
    O IPv4 do computador aparece com `ipconfig` no PowerShell (linha **Endereço IPv4** do adaptador Wi-Fi).
-2. **Ferramentas → Placa → esp32 → ESP32 Dev Module** (ou **DOIT ESP32 DEVKIT V1**).
-3. **Ferramentas → Porta →** a COM da antena.
-4. Clique em **Carregar**. Se aparecer `Connecting....____`, segure **BOOT** até começar a gravar.
-5. Abra o **Monitor Serial** a **115200 baud**. A cada 5 s a antena imprime o modo (`GATT+SENSORES` ou `SCAN_RSSI`), RSSI, contadores e estado do Wi-Fi/MQTT.
-6. Repita para as antenas 2 e 3, mudando apenas `ID_ANTENA`.
+3. **Ferramentas → Placa → esp32 → ESP32 Dev Module** (ou **DOIT ESP32 DEVKIT V1**).
+4. **Ferramentas → Porta →** a COM da antena.
+5. Clique em **Carregar**. Se aparecer `Connecting....____`, segure **BOOT** até começar a gravar.
+6. Abra o **Monitor Serial** a **115200 baud**. A cada 5 s a antena imprime o modo (`GATT+SENSORES` ou `SCAN_RSSI`), RSSI, contadores e estado do Wi-Fi/MQTT.
+7. Repita para as antenas 2 e 3, mudando apenas `ID_ANTENA`.
 
 **Tópicos MQTT publicados pela antena:**
 
@@ -662,7 +666,7 @@ $env:OQPNB_TG_TOKEN = "<token>"
 $env:OQPNB_TG_CHAT  = "<chat_id>"
 ```
 
-> **Credenciais no código (versão de apresentação):** para a demonstração, `alerta_telegram.py` traz como valor padrão o token do bot e o chat ID da equipe, e `anchor_mvp_v1.ino` traz a rede Wi-Fi do laboratório. Esses valores serão removidos após a apresentação. Quem for instalar o sistema deve **criar o próprio bot** (passo a passo abaixo) e definir `OQPNB_TG_TOKEN` e `OQPNB_TG_CHAT`: as variáveis de ambiente têm prioridade sobre os valores do código. Em nenhuma hipótese publique tokens e senhas reais em repositórios ou arquivos versionados.
+> **Credenciais fora do repositório:** o token do bot, o chat ID e a senha do Wi-Fi nunca ficam no código versionado. O token e o chat ID podem ser definidos pelas variáveis de ambiente acima ou no arquivo local `segredos.env`, na raiz do projeto: copie `segredos.env.exemplo` para `segredos.env` e preencha `OQPNB_TG_TOKEN` e `OQPNB_TG_CHAT`. Esse arquivo é ignorado pelo git e lido automaticamente ao abrir o painel; variáveis já definidas no ambiente têm prioridade sobre ele. A senha do Wi-Fi das antenas fica em `credenciais.h` (Seção 3.2.3). Em nenhuma hipótese publique tokens e senhas reais em repositórios ou arquivos versionados.
 
 **Como criar o bot do Telegram e obter o token e o chat ID**
 
@@ -693,14 +697,14 @@ Parte B – Obter o chat ID:
 
 Parte C – Configurar e testar:
 
-1. No PowerShell que vai abrir o painel, defina as variáveis:
+1. Copie `segredos.env.exemplo` para `segredos.env`, na raiz do projeto, e preencha:
 
-   ```powershell
-   $env:OQPNB_TG_TOKEN = "<token da Parte A>"
-   $env:OQPNB_TG_CHAT  = "<chat ID da Parte B>"
+   ```
+   OQPNB_TG_TOKEN=<token da Parte A>
+   OQPNB_TG_CHAT=<chat ID da Parte B>
    ```
 
-   Para gravar as variáveis de forma permanente no usuário do Windows, use `setx OQPNB_TG_TOKEN "<token>"` e `setx OQPNB_TG_CHAT "<chat ID>"`. Essas variáveis só valem para as janelas do PowerShell abertas depois do comando.
+   Outra opção é definir as variáveis no PowerShell que vai abrir o painel (`$env:OQPNB_TG_TOKEN = "<token>"` e `$env:OQPNB_TG_CHAT = "<chat ID>"`) ou de forma permanente com `setx`, que só vale para as janelas abertas depois do comando.
 2. Abra o painel (`python -m streamlit run app.py`). Na barra lateral, a opção **Enviar alerta de quedas** fica habilitada.
 3. Clique em **Testar envio**. O bot deve enviar a mensagem "✅ Teste do Cinto Inteligente" com a data e a hora. Se aparecer erro, consulte a Seção 5.3 (erros 401, 403 e 404 do Telegram).
 

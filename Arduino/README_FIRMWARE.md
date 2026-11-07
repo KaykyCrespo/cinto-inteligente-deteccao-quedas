@@ -72,7 +72,7 @@ Manufacturer Data com o texto `{OQPNB;<id_cinto>}`.
 #define MQTT_BROKER     "192.168.x.x"   // IP do PC com o Mosquitto
 #define MQTT_PORT       1883
 ```
-O sketch vem com a rede Wi-Fi e o IP do laboratório da equipe (versão de apresentação); troque pelos da sua rede.
+O Wi-Fi não fica no sketch: copie `anchor_mvp_v1/credenciais_exemplo.h` para `credenciais.h` (ignorado pelo git) e preencha `WIFI_SSID` e `WIFI_PASSWORD`.
 
 **`cinto_mvp_v1.ino`**:
 ```cpp
