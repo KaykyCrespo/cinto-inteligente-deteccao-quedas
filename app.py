@@ -239,7 +239,7 @@ class Conexao:
                 self._rotacionar_se_preciso(agora)
                 f, w, _ = self.grav["amostras"]
                 w.writerow({"timestamp": agora.isoformat(timespec="milliseconds"),
-                            "origem": "anuncio" if somente_rssi else "gatt", **d})
+                            "origem": "advertising" if somente_rssi else "gatt", **d})
                 self.grav["n"] += 1
                 self.grav["n_parte"] += 1
                 if self.grav["n_parte"] % 200 == 0:
@@ -371,7 +371,7 @@ class Conexao:
                 linhas.append({"cinto": cinto, "antena": antena,
                                "RSSI atual": r[-1] if r else None,
                                "RSSI médio": round(media, 1) if media is not None else None,
-                               "origem": "GATT" if e["gatt"] else "anúncio",
+                               "origem": "GATT" if e["gatt"] else "ADVERTISING",
                                "amostras": len(r), "idade (s)": round(idade, 1)})
                 if media is not None and idade <= 10 and (cinto not in melhores or media > melhores[cinto]["rssi"]):
                     melhores[cinto] = {"antena": antena, "rssi": media, "last": self.ultima.get(cinto),
@@ -847,21 +847,20 @@ def atualizar_painel():
 
         # -------- quedas detectadas --------
         col_quedas.subheader("Quedas Detectadas")
+        colunas_quedas = {"data": "Data", "hora": "Hora", "cinto": "Cinto", "antena": "Antena", "prob": "Prob",
+                          "amax (g)": "|a| Máx (g)", "gmax": "|w| Giros (º/s)", "quadrante": "Quadrante"}
         if s["quedas"]:
-            df_quedas = pd.DataFrame(s["quedas"]).reindex(
-                columns=["data", "hora", "cinto", "antena", "prob", "amax (g)", "gmax", "quadrante"])
+            df_quedas = pd.DataFrame(s["quedas"]).reindex(columns=list(colunas_quedas))
             df_quedas["data"] = pd.to_datetime(df_quedas["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
             df_quedas["prob"] = df_quedas["prob"].map(lambda valor: f"{valor:.1%}")
             df_quedas["quadrante"] = (
                 df_quedas["quadrante"].fillna("Indisponível")
                 .str.removesuffix(" (última posição, baixa confiança)")
                 .replace({"localização indisponível": "Indisponível", "": "Indisponível"}))
-            df_quedas = df_quedas.rename(columns={
-                "data": "Data", "hora": "Hora", "cinto": "Cinto", "antena": "Antena", "prob": "Prob",
-                "amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)", "quadrante": "Quadrate"})
-            col_quedas.dataframe(df_quedas, width="stretch", hide_index=True)
+            df_quedas = df_quedas.rename(columns=colunas_quedas)
         else:
-            col_quedas.caption("Nenhuma queda detectada.")
+            df_quedas = pd.DataFrame(columns=list(colunas_quedas.values()))
+        col_quedas.dataframe(df_quedas, width="stretch", hide_index=True)
 
     with detalhes_tab:
         def _por_cinto(d, fmt):
@@ -992,7 +991,7 @@ def atualizar_painel():
                 df_historico = pd.DataFrame(s["quedas"])
                 df_historico["data"] = pd.to_datetime(df_historico["data"], format="%Y-%m-%d", errors="coerce").dt.strftime("%d/%m/%Y")
                 df_historico["prob"] = df_historico["prob"].map(lambda valor: f"{valor:.1%}")
-                df_historico = df_historico.rename(columns={"amax (g)": "|a| Máx(g)", "gmax": "|w| Giros(º/s)"})
+                df_historico = df_historico.rename(columns={"amax (g)": "|a| Máx (g)", "gmax": "|w| Giros (º/s)"})
                 df_historico = df_historico.rename(columns=lambda coluna: coluna[:1].upper() + coluna[1:])
                 st.dataframe(df_historico, width="stretch", hide_index=True)
             else:
@@ -1073,8 +1072,8 @@ def atualizar_painel():
                                      "confianca": "nao_confirmada", "idade": 0.0})
             quad_df["ativo"] = quad_df["q"].isin([p["quadrante"] for p in s["posicoes"].values()
                                                if p and p["confianca"] == "boa"])
-            esc_x = alt.Scale(domain=[-0.5, W + 0.5], nice=False)
-            esc_y = alt.Scale(domain=[-0.5, H + 0.5], nice=False)
+            esc_x = alt.Scale(domain=[0, W + 0.5], nice=False)
+            esc_y = alt.Scale(domain=[0, H + 0.5], nice=False)
             quad_df["x1"] = quad_df["x"] - W / 4; quad_df["x2"] = quad_df["x"] + W / 4
             quad_df["y1"] = quad_df["y"] - H / 4; quad_df["y2"] = quad_df["y"] + H / 4
             fundo = alt.Chart(quad_df).mark_rect(stroke="#888", strokeWidth=1).encode(
@@ -1131,9 +1130,9 @@ def atualizar_painel():
                              alt.Tooltip("anchors:Q", title="Anchors usadas")])
                 mapa += alt.Chart(pos_df).mark_text(dy=18, color="#4c78a8").encode(x="x:Q", y="y:Q", text="rotulo:N")
             # mesma escala em x e y: a largura do gráfico segue a proporção do ambiente
-            escala_px = min(480 / (H + 1), 520 / (W + 1))
-            altura_px = round(escala_px * (H + 1))
-            largura_px = round(escala_px * (W + 1))
+            escala_px = min(480 / (H + 0.5), 520 / (W + 0.5))
+            altura_px = round(escala_px * (H + 0.5))
+            largura_px = round(escala_px * (W + 0.5))
             col_desenho, col_legenda = st.columns([7, 3])
             col_desenho.altair_chart(
                 mapa.properties(height=altura_px, width=largura_px,
