@@ -864,7 +864,7 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 
 | Ponto | Onde verificar | Esperado |
 |---|---|---|
-| Antena ↔ Wi-Fi/MQTT | Monitor Serial da antena; painel → Detalhes | Linha `[STATUS] ... WiFi: ... MQTT: ...` sem falhas e `TX MQTT` crescendo; antena **online** |
+| Antena ↔ Wi-Fi/MQTT | Monitor Serial da antena; painel → Detalhes | Linha `[STATUS] ... WiFi: ...` sem falhas e `TX MQTT` crescendo; antena **online** |
 | Cinto ↔ antena (GATT) | Monitor Serial da antena; painel → Detalhes → antenas | `[GATT] CONECTADO E AUTENTICADO!` e modo `GATT+SENSORES` em uma antena |
 | Código de ambiente | Monitor Serial do cinto | Código validado |
 | Fluxo de dados | Painel → Monitoramento | Amostras subindo, ~100 Hz |
@@ -902,7 +902,7 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 
 | Controle | Função |
 |---|---|
-| Enviar alerta de quedas | Liga/desliga o envio ao Telegram (fica desabilitado se o token não estiver definido) |
+| Enviar alerta de quedas | Liga/desliga o envio de notificações ao Telegram |
 | Testar envio | Envia uma mensagem de teste ao Telegram |
 | Limiar de alarme | Sensibilidade do detector. Menor = detecta mais e gera mais falsos alarmes; maior = o oposto (Seção 4.4) |
 | Tempo para resetar alerta | Por quanto tempo o aviso de queda fica na tela (1–5 min) |
@@ -916,6 +916,80 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 - **Métricas:** amostras recebidas, taxa (amostras/s), antenas online, **Status Eletrodo** e **Status Telegram**.
 - **Probabilidade de queda:** gráfico das 8 últimas janelas (0–100%). Picos que cruzam o limiar geram alarme.
 - **Quedas Detectadas:** tabela com cada evento e o status de envio ao Telegram.
+
+**Figura 7 – Barra lateral do painel**
+
+![Barra lateral com controles do sistema](APOIO/IMAGENS/prints/barra_lateral.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. Logo do sistema e nome do painel — identifica a aplicação e o projeto em execução.
+2. Seção de alertas de queda — ativa ou desativa o envio de notificações ao Telegram.
+3. Toggle de envio de alerta — liga e desliga a comunicação de emergência para o operador.
+4. Limiar de alarme — define a sensibilidade do detector de queda.
+5. Tempo para resetar o alerta — controla a duração do aviso na interface após a detecção.
+6. Controles de tela — atualiza automaticamente a interface e ajusta o intervalo de atualização.
+7. Gravação de amostras e reconexão — inicia a gravação dos dados brutos e restaura a conexão MQTT.
+
+**Figura 8 – Monitoramento em operação normal**
+
+![Monitoramento em operação normal](APOIO/IMAGENS/prints/monitoramento_normal.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. Cartão do cinto — apresenta o estado operacional do equipamento e a última leitura recebida.
+2. Métrica de amostras recebidas — mostra o total acumulado de leituras do sistema.
+3. Taxa de amostras por segundo — indica a frequência de aquisição em tempo real.
+4. Antenas online — informa quantas estações estão ativas e respondendo ao broker.
+5. Status do eletrodo — sinaliza se os eletrodos estão conectados ou soltos.
+6. Gráfico de probabilidade de queda — acompanha a evolução do risco em janela recente.
+7. Tabela de quedas detectadas — registra os eventos anteriores para consulta e conferência.
+
+**Figura 9 – Status do sistema e antenas**
+
+![Status do sistema e cartões das antenas](APOIO/IMAGENS/prints/detalhes_status.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. Status do sistema — resumo geral de conexão, modelo, pacotes inválidos e total de quedas.
+2. Cartão de antena 1 — mostra o estado de conexão e o RSSI da leitura mais recente.
+3. Cartão de antena 2 — apresenta o mesmo resumo de operação de outra estação receptora.
+4. Cartão de cinto — indica a presença do equipamento, status do eletrodo e última leitura.
+5. Cartão de antena 3 — mostra o modo de operação e intensidade do sinal do canal BLE.
+6. Bloco de antenas — consolida o estado de todas as estações e facilita a comparação rápida.
+
+**Figura 10 – Mapa de localização e ambiente**
+
+![Mapa de localização indoor com antenas e posição do cinto](APOIO/IMAGENS/prints/detalhes_mapa.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. Área do mapa — representa o ambiente interno e o posicionamento das antenas no cômodo.
+2. Antena 1 — referência de posição para cálculo da localização do cinto.
+3. Antena 2 — outra referência do ambiente usada na triangulação por RSSI.
+4. Região do cinto — mostra a estimativa da posição do usuário no ambiente.
+5. Círculos de alcance — representam os raios estimados das antenas e a proximidade do sensor.
+6. Legenda do ambiente — explica os símbolos e a interpretação visual do mapa.
+
+**Figura 11 – Gráficos de sinais e ECG**
+
+![Gráficos de sinais e ECG](APOIO/IMAGENS/prints/detalhes_sinais_ecg.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. Gráfico de aceleração — exibe a magnitude do movimento em tempo real.
+2. Gráfico de giroscópio — mostra a velocidade angular e variações bruscas.
+3. ECG bruto — apresenta o sinal do AD8232 para checar a qualidade do contato dos eletrodos.
+
+**Figura 12 – Exportação de dados**
+
+![Bloco de exportação de dados](APOIO/IMAGENS/prints/detalhes_exportacao.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. Exportação de janelas — gera o CSV das janelas analisadas pela lógica de detecção.
+2. Exportação de quedas — salva os eventos de queda detectados em arquivo tabular.
+3. Exportação de amostras — baixa os dados brutos e o banco do sistema para manutenção e análise.
 
 **Aba Detalhes:**
 
