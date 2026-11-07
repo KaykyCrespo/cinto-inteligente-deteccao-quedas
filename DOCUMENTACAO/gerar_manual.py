@@ -2,7 +2,9 @@
 
 Requisitos: pip install pypandoc_binary python-docx pywin32 · Microsoft Word instalado (exportação do PDF).
 Uso: python DOCUMENTACAO/gerar_manual.py
+     python DOCUMENTACAO/gerar_manual.py --origem ROTEIRO_VIDEO.md --saida Roteiro_Video_OQPNB --simples
 """
+import argparse
 import os
 import re
 
@@ -28,21 +30,22 @@ EQUIPE = [
 AZUL_ESCURO = RGBColor(0x1F, 0x3A, 0x5F)
 
 
-def preparar_markdown():
+def preparar_markdown(capa=True):
     with open(ORIGEM, encoding="utf-8") as f:
         texto = f.read()
-    texto = re.sub(r"\A# .*\n", "", texto)                    # o título vai para a capa
+    if capa:
+        texto = re.sub(r"\A# .*\n", "", texto)                # o título vai para a capa
     texto = re.sub(r"(?m)^---\s*$\n", "", texto)
     texto = re.sub(r"(?m)^(## Seção )", QUEBRA.replace("\\", "\\\\") + r"\1", texto)
     texto = re.sub(r"\]\(([^)]*%20[^)]*)\)", lambda m: "](<" + m.group(1).replace("%20", " ") + ">)", texto)
     return texto
 
 
-def converter_docx(texto):
+def converter_docx(texto, sumario=True):
+    extras = ["--toc", "--toc-depth=2", "-M", "toc-title=Sumário"] if sumario else []
     pypandoc.convert_text(
         texto, "docx", format="markdown-implicit_figures", outputfile=DOCX,
-        extra_args=["--toc", "--toc-depth=2", "--shift-heading-level-by=-1", f"--resource-path={PASTA}",
-                    "-M", "toc-title=Sumário", "-M", "lang=pt-BR"])
+        extra_args=extras + ["--shift-heading-level-by=-1", f"--resource-path={PASTA}", "-M", "lang=pt-BR"])
 
 
 def inserir_capa():
@@ -84,7 +87,7 @@ def inserir_capa():
     doc.save(DOCX)
 
 
-def formatar_no_word():
+def formatar_no_word(capa=True):
     word = win32com.client.DispatchEx("Word.Application")
     word.Visible = False
     word.DisplayAlerts = 0
@@ -153,7 +156,7 @@ def formatar_no_word():
                 p.KeepWithNext = True
 
         rodape = doc.Sections(1).Footers(1)
-        rodape.PageNumbers.Add(2, False)                      # à direita, sem número na capa
+        rodape.PageNumbers.Add(2, not capa)                   # à direita; sem número na capa
         for i in range(1, doc.TablesOfContents.Count + 1):
             doc.TablesOfContents(i).Update()
         doc.Fields.Update()
@@ -165,8 +168,18 @@ def formatar_no_word():
 
 
 if __name__ == "__main__":
-    converter_docx(preparar_markdown())
-    inserir_capa()
-    formatar_no_word()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--origem", default="MANUAL_USUARIO_OPERACAO.md", help="Markdown dentro de DOCUMENTACAO/")
+    ap.add_argument("--saida", default="Manual_Usuario_Operacao_OQPNB", help="nome base do DOCX/PDF")
+    ap.add_argument("--simples", action="store_true", help="sem capa e sem sumário")
+    a = ap.parse_args()
+    ORIGEM = os.path.join(PASTA, a.origem)
+    DOCX = os.path.join(PASTA, a.saida + ".docx")
+    PDF = os.path.join(PASTA, a.saida + ".pdf")
+
+    converter_docx(preparar_markdown(capa=not a.simples), sumario=not a.simples)
+    if not a.simples:
+        inserir_capa()
+    formatar_no_word(capa=not a.simples)
     print("Gerado:", DOCX)
     print("Gerado:", PDF)

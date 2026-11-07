@@ -25,9 +25,19 @@
 
 ### 1.2 Enquadramento na vertente SmartCity
 
-O sistema se insere no domínio de **saúde conectada da cidade inteligente**: uma rede local de sensores IoT monitora pessoas idosas em ambientes internos (residências, casas de repouso e unidades de saúde) sem câmeras, e reduz o tempo entre uma possível queda e a percepção de quem acompanha a pessoa. O ecossistema segue o padrão de infraestrutura urbana conectada: nós sensores de borda, rede de coleta (BLE + Wi-Fi), transporte padronizado (MQTT), persistência e um serviço de inteligência que dispara alertas para a rede de cuidado (Telegram).
+O envelhecimento da população transforma o cuidado com idosos em um **serviço urbano**: instituições de longa permanência, unidades de saúde e programas de atendimento domiciliar dependem de equipes que não conseguem acompanhar todas as pessoas o tempo todo. Na classificação de Giffinger et al. (2007), esse domínio corresponde à dimensão de qualidade de vida (*smart living*) da cidade inteligente, e a saúde conectada é um dos principais serviços urbanos apoiados por IoT (Zanella et al., 2014; Gubbi et al., 2013).
 
-**Problema atacado:** a demora em perceber uma queda de pessoa idosa que vive ou permanece sozinha em ambiente interno.
+O sistema é uma **infraestrutura de sensoriamento** para esses espaços, com as mesmas características das redes de telemetria urbana:
+
+- **Rede fixa de sensores:** antenas instaladas no prédio captam o sinal do cinto e medem a intensidade do sinal recebido (RSSI) em cada ponto do ambiente.
+- **Transporte padronizado:** os dados trafegam por Wi-Fi e MQTT, protocolo de publicação e assinatura usado em telemetria de cidades inteligentes.
+- **Processamento local:** a classificação e a localização rodam no computador do prédio, sem câmeras e sem nuvem, o que reduz a latência e preserva a privacidade (LGPD).
+- **Serviço de alerta:** a equipe de cuidado recebe o aviso em segundos, com a região do ambiente onde a pessoa caiu.
+- **Escalabilidade:** a mesma rede pode ser replicada em vários prédios e, como evolução futura, integrada a centrais de teleassistência do município.
+
+**Problema atacado:** a demora em perceber uma queda de pessoa idosa que vive ou permanece sozinha em ambiente interno. Muitas soluções dependem de a própria pessoa acionar um botão de emergência, o que nem sempre é possível após a queda. Outras usam GPS, pouco confiável em ambientes internos, ou geram alarmes falsos a cada movimento brusco.
+
+**Diferenciais da proposta:** alerta automático, que não depende de quem caiu; privacidade, sem câmeras; e inovação frugal, com componentes de baixo custo e fáceis de encontrar (ESP32, MPU6050, AD8232), acessíveis a instituições e famílias.
 
 **Hipótese orientadora:** um cinto com sensor inercial na cintura, classificado por Random Forest treinado em dataset público, detecta possíveis quedas com alta sensibilidade e, combinado às antenas BLE, informa a região aproximada do ambiente onde a queda ocorreu.
 
