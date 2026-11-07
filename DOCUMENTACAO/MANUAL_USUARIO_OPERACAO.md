@@ -531,7 +531,7 @@ cd cinto-inteligente-deteccao-quedas
    #define WIFI_SSID       "<nome da rede 2,4 GHz>"
    #define WIFI_PASSWORD   "<senha da rede>"
    ```
-   O `credenciais.h` é ignorado pelo git, então a senha não vai para o repositório. Se ele não existir, o sketch compila com valores de exemplo e a antena não conecta ao Wi-Fi.
+   O `credenciais.h` é ignorado pelo git, então a senha não vai para o repositório. Se ele não existir, o sketch compila com valores de exemplo e a antena não conecta ao Wi-Fi. Na Arduino IDE ele aparece como uma aba ao lado do sketch; o mesmo arquivo serve para as três antenas. Sempre que mudar a rede, grave o firmware de novo.
 2. Abra o sketch e confira o topo do arquivo, ajustando o número da antena e o IP do broker:
    ```cpp
    #define CODIGO_AMBIENTE "OQPNB"          // igual ao do cinto
@@ -938,7 +938,7 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 | USB / gravação | `Failed to connect to ESP32: Timed out` | Placa fora do modo de gravação | Segure **BOOT** durante `Connecting...`; no ESP32-C3, segure BOOT ao conectar o cabo |
 | USB / gravação | Monitor Serial do cinto vazio | `USB CDC On Boot` desativado | Ative-o e grave de novo |
 | USB / gravação | `Sketch too big` | Partição padrão pequena para Wi-Fi + BLE | **Ferramentas → Partition Scheme → Huge APP (3MB No OTA)** |
-| Rede | Antena não conecta ao Wi-Fi | Rede de 5 GHz, SSID/senha errados ou sinal fraco | Use rede de 2,4 GHz; confira `WIFI_SSID`/`WIFI_PASSWORD` |
+| Rede | Antena não conecta ao Wi-Fi | Rede de 5 GHz, SSID/senha errados, `credenciais.h` ausente ou sinal fraco | Use rede de 2,4 GHz; confira `WIFI_SSID`/`WIFI_PASSWORD` em `Arduino/anchor_mvp_v1/credenciais.h` e grave o firmware de novo |
 | MQTT | Antena com Wi-Fi conectado, mas `[MQTT] Conectando ao broker ... Falhou (rc=...)` | IP do broker errado, firewall ou listener ausente | Confira `MQTT_BROKER` com `ipconfig`; regra de firewall da porta 1883; `listener 1883 0.0.0.0`; rede como **Privada** |
 | MQTT | Painel mostra **Erro MQTT** | Mosquitto parado | `Restart-Service mosquitto` e clique em **Reconectar** |
 | MQTT | Antena oscila entre online e offline | Alimentação instável ou Wi-Fi fraco | Carregue a bateria, confira os 5,0 V do MT3608, aproxime do roteador |
@@ -953,7 +953,7 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 | IA | Quedas não detectadas | Limiar alto, cinto mal posicionado ou faixas do MPU diferentes das do modelo | Reduza o limiar; cinto na cintura, à frente; retreine se mudar as faixas |
 | IA | "Modelo indisponível" | Arquivo `.joblib` ausente ou versão do scikit-learn diferente | Confira `modelos/modelo_mvp_8g.joblib`; reinstale com `pip install -r requirements.txt` |
 | Localização | Quadrante instável ou errado | Sombreamento corporal, antenas colineares, calibração ausente | Reposicione as antenas fora de linha; calibre o RSSI (Seção 5.1); interprete como região |
-| Telegram | Toggle desabilitado | Variáveis `OQPNB_TG_TOKEN`/`OQPNB_TG_CHAT` não definidas | Defina-as e reabra o painel na mesma janela do PowerShell |
+| Telegram | Toggle desabilitado | Token e chat ID não configurados (`segredos.env` ausente ou vazio e variáveis não definidas) | Preencha `OQPNB_TG_TOKEN` e `OQPNB_TG_CHAT` em `segredos.env` (Seção 3.3.4) e reabra o painel |
 | Telegram | Erro **403 – bot was blocked by the user** | O destinatário bloqueou o bot | No Telegram, abra o bot, desbloqueie e envie `/start` |
 | Telegram | Erro 401 / 404 | Token inválido ou revogado | Gere um novo token no @BotFather |
 | Energia | ESP32 reinicia sozinho (brownout) | Bateria fraca ou MT3608 abaixo de 5 V | Carregue a bateria; reajuste o MT3608 para 5,0 V |
