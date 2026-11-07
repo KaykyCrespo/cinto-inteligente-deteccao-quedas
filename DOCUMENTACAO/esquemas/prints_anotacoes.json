@@ -1,0 +1,46 @@
+{
+  "barra_lateral": [
+    {"numero": 1, "x": 150, "y": 120},
+    {"numero": 2, "x": 150, "y": 220},
+    {"numero": 3, "x": 150, "y": 340},
+    {"numero": 4, "x": 150, "y": 500},
+    {"numero": 5, "x": 150, "y": 640},
+    {"numero": 6, "x": 150, "y": 760},
+    {"numero": 7, "x": 140, "y": 850}
+  ],
+  "monitoramento_normal": [
+    {"numero": 1, "x": 420, "y": 180},
+    {"numero": 2, "x": 560, "y": 240},
+    {"numero": 3, "x": 730, "y": 240},
+    {"numero": 4, "x": 920, "y": 240},
+    {"numero": 5, "x": 1120, "y": 240},
+    {"numero": 6, "x": 640, "y": 770},
+    {"numero": 7, "x": 1140, "y": 790}
+  ],
+  "detalhes_status": [
+    {"numero": 1, "x": 420, "y": 150},
+    {"numero": 2, "x": 760, "y": 180},
+    {"numero": 3, "x": 1100, "y": 180},
+    {"numero": 4, "x": 300, "y": 420},
+    {"numero": 5, "x": 760, "y": 420},
+    {"numero": 6, "x": 1180, "y": 420}
+  ],
+  "detalhes_mapa": [
+    {"numero": 1, "x": 360, "y": 150},
+    {"numero": 2, "x": 740, "y": 170},
+    {"numero": 3, "x": 1020, "y": 170},
+    {"numero": 4, "x": 500, "y": 520},
+    {"numero": 5, "x": 950, "y": 520},
+    {"numero": 6, "x": 1180, "y": 610}
+  ],
+  "detalhes_sinais_ecg": [
+    {"numero": 1, "x": 440, "y": 170},
+    {"numero": 2, "x": 980, "y": 170},
+    {"numero": 3, "x": 1210, "y": 520}
+  ],
+  "detalhes_exportacao": [
+    {"numero": 1, "x": 300, "y": 200},
+    {"numero": 2, "x": 720, "y": 200},
+    {"numero": 3, "x": 1050, "y": 200}
+  ]
+}
