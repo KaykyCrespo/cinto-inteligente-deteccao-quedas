@@ -47,7 +47,7 @@ TCC MVP/
     ├── MANUAL_USUARIO_OPERACAO.md / Manual_Usuario_Operacao.pdf / .docx
     ├── ROTEIRO_VIDEO.md / Roteiro_Video.pdf / .docx
     ├── gerar_manual.py    gera o PDF/DOCX do manual e do roteiro
-    ├── esquemas/          diagramas (arquitetura, fluxograma, esquemas elétricos, pipeline, métricas) e seus scripts
+    ├── esquemas/          diagramas (arquitetura, pipeline, métricas) e seus scripts
     └── APOIO/             material de apoio do curso e imagens dos cases
 ```
 
