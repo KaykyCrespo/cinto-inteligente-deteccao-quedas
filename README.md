@@ -11,9 +11,10 @@ quadrante do ambiente, dispara alerta no Telegram e persiste tudo em SQLite.
 |---|---|
 | `README.md` (este) | Visão geral, estrutura, instalação e execução |
 | [`Arduino/README_FIRMWARE.md`](Arduino/README_FIRMWARE.md) | Firmware do cinto e da antena: protocolo BLE/MQTT, configuração, Mosquitto |
-| [`DOCUMENTACAO/README_BANCO_DE_DADOS.md`](DOCUMENTACAO/README_BANCO_DE_DADOS.md) | Banco SQLite: DER, modelos lógico e físico, dicionário de dados |
-| [`DOCUMENTACAO/Manual_Usuario_Operacao.pdf`](DOCUMENTACAO/Manual_Usuario_Operacao.pdf) | Guia do Usuário e Manual de Operação (fonte: `MANUAL_USUARIO_OPERACAO.md`) |
-| [`DOCUMENTACAO/Roteiro_Video.pdf`](DOCUMENTACAO/Roteiro_Video.pdf) | Roteiro do vídeo de apresentação (fonte: `ROTEIRO_VIDEO.md`) |
+| [`dados/README_BANCO_DE_DADOS.md`](dados/README_BANCO_DE_DADOS.md) | Banco SQLite: DER, modelos lógico e físico, dicionário de dados |
+| [`DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf`](DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf) | Guia do Usuário e Manual de Operação (fonte: `DOCUMENTACAO/MANUAL/MANUAL_USUARIO_OPERACAO.md`) |
+| [`DOCUMENTACAO/VIDEO TECNICO/Roteiro_Video.pdf`](DOCUMENTACAO/VIDEO%20TECNICO/Roteiro_Video.pdf) | Roteiro e materiais do vídeo técnico (fonte: `DOCUMENTACAO/VIDEO TECNICO/ROTEIRO_VIDEO.md`) |
+| [`DOCUMENTACAO/FERRAMENTAS/gerar_documentos.py`](DOCUMENTACAO/FERRAMENTAS/gerar_documentos.py) | Gera o manual ou o roteiro em DOCX e PDF |
 | [`dados/SISFALL/README_ORIGEM_SISFALL.md`](dados/SISFALL/README_ORIGEM_SISFALL.md) | Nota original sobre a origem do dataset SisFall (terceiros) |
 | `dados/SISFALL/SisFall_dataset/Readme.txt` | Descrição oficial do SisFall (atividades, voluntários, sensores) |
 
@@ -29,26 +30,28 @@ TCC MVP/
 ├── interface_mvp_2.py     parser do pacote MQTT e versão do monitor em terminal
 ├── localizacao.py         RSSI -> distância -> quadrante (com confiança e retenção)
 ├── requirements.txt       dependências do sistema
-├── requirements-docs.txt  dependências só para gerar diagramas e o manual
+├── requirements-docs.txt  dependências só para gerar documentos e diagramas
 ├── Arduino/               firmware do cinto (cinto_mvp_v1), da antena (anchor_mvp_v1) e bibliotecas usadas
-├── assets/                logo
+├── assets/                logo.svg do painel
 ├── impressao_3d/          arquivos de impressão 3D dos cases (cinto/ e antena/)
 ├── modelos/               modelo_mvp_8g.joblib e o relatório do treino
 ├── scripts/               treino_sisfall.py, reproduzir_csv.py
 ├── tests/                 testes automatizados (localização, controle do Telegram)
 ├── dados/
 │   ├── oqpnb.db           banco SQLite (criado ao abrir o painel; ignorado pelo git)
+│   ├── README_BANCO_DE_DADOS.md  DER, modelos e dicionário de dados
 │   ├── ambiente.json      tamanho do ambiente e posição das antenas (salvo pelo painel)
 │   ├── gravacoes/         CSV de amostras do botão "Gravar amostras" (ignorado pelo git)
 │   ├── ensaios_rssi/      CSVs e resultados dos ensaios de calibração de RSSI
 │   └── SISFALL/           dataset público usado no treino
 └── DOCUMENTACAO/
-    ├── README_BANCO_DE_DADOS.md
-    ├── MANUAL_USUARIO_OPERACAO.md / Manual_Usuario_Operacao.pdf / .docx
-    ├── ROTEIRO_VIDEO.md / Roteiro_Video.pdf / .docx
-    ├── gerar_manual.py    gera o PDF/DOCX do manual e do roteiro
+    ├── MANUAL/            fonte e arquivos PDF/DOCX do manual
+    ├── VIDEO TECNICO/     roteiro, gravações e arquivos PDF/DOCX
+    ├── FERRAMENTAS/       gerador compartilhado de documentos
+    ├── Power Point - Apresentação.pptx
     ├── esquemas/          diagramas (arquitetura, pipeline, métricas) e seus scripts
-    └── APOIO/             material de apoio do curso e imagens dos cases
+    ├── APOIO/             material de apoio do curso
+    └── IMAGENS/           cases, fluxograma e capturas do painel
 ```
 
 Os módulos Python da raiz se importam entre si pelo nome; mantenha-os juntos. Scripts e testes
@@ -131,4 +134,4 @@ usando o padrão de sombreamento medido.
 
 SQLite em `dados/oqpnb.db`. Janelas, quedas e status das antenas são gravados sempre; amostras
 brutas só enquanto "Gravar amostras" estiver ligado. Modelagem completa (DER, lógico, físico,
-dicionário de dados) em `DOCUMENTACAO/README_BANCO_DE_DADOS.md`. A aba Detalhes exporta CSV por sessão e o próprio `.db`.
+dicionário de dados) em `dados/README_BANCO_DE_DADOS.md`. A aba Detalhes exporta CSV por sessão e o próprio `.db`.

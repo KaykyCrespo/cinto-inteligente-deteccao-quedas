@@ -1,8 +1,8 @@
-"""Gera o Guia do Usuário e Manual de Operação em DOCX e PDF a partir de MANUAL_USUARIO_OPERACAO.md.
+"""Gera o manual ou o roteiro de vídeo em DOCX e PDF a partir de Markdown.
 
 Requisitos: pip install pypandoc_binary python-docx pywin32 · Microsoft Word instalado (exportação do PDF).
-Uso: python DOCUMENTACAO/gerar_manual.py
-     python DOCUMENTACAO/gerar_manual.py --origem ROTEIRO_VIDEO.md --saida Roteiro_Video --simples
+Uso: python DOCUMENTACAO/gerar_documentos.py
+    python DOCUMENTACAO/gerar_documentos.py --origem "VIDEO TECNICO/ROTEIRO_VIDEO.md" --saida "VIDEO TECNICO/Roteiro_Video" --simples
 """
 import argparse
 import os
@@ -16,10 +16,10 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 from docx.text.paragraph import Paragraph
 
-PASTA = os.path.dirname(os.path.abspath(__file__))
-ORIGEM = os.path.join(PASTA, "MANUAL_USUARIO_OPERACAO.md")
-DOCX = os.path.join(PASTA, "Manual_Usuario_Operacao.docx")
-PDF = os.path.join(PASTA, "Manual_Usuario_Operacao.pdf")
+PASTA_DOCUMENTACAO = os.path.dirname(os.path.abspath(__file__))
+ORIGEM = os.path.join(PASTA_DOCUMENTACAO, "MANUAL", "MANUAL_USUARIO_OPERACAO.md")
+DOCX = os.path.join(PASTA_DOCUMENTACAO, "MANUAL", "Manual_Usuario_Operacao.docx")
+PDF = os.path.join(PASTA_DOCUMENTACAO, "MANUAL", "Manual_Usuario_Operacao.pdf")
 
 QUEBRA = '\n```{=openxml}\n<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n```\n\n'
 # quebra de seção antes da Seção 1: capa, folha de rosto e sumário ficam sem número de página (ABNT)
@@ -53,7 +53,7 @@ def converter_docx(texto, sumario=True):
     extras = ["--toc", "--toc-depth=2", "-M", "toc-title=Sumário"] if sumario else []
     pypandoc.convert_text(
         texto, "docx", format="markdown-implicit_figures", outputfile=DOCX,
-        extra_args=extras + ["--shift-heading-level-by=-1", f"--resource-path={PASTA}", "-M", "lang=pt-BR"])
+        extra_args=extras + ["--shift-heading-level-by=-1", f"--resource-path={PASTA_DOCUMENTACAO}", "-M", "lang=pt-BR"])
 
 
 def inserir_capa():
@@ -225,13 +225,13 @@ def formatar_no_word(capa=True):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--origem", default="MANUAL_USUARIO_OPERACAO.md", help="Markdown dentro de DOCUMENTACAO/")
-    ap.add_argument("--saida", default="Manual_Usuario_Operacao", help="nome base do DOCX/PDF")
+    ap.add_argument("--origem", default="MANUAL/MANUAL_USUARIO_OPERACAO.md", help="Markdown relativo a DOCUMENTACAO/")
+    ap.add_argument("--saida", default="MANUAL/Manual_Usuario_Operacao", help="caminho base do DOCX/PDF relativo a DOCUMENTACAO/")
     ap.add_argument("--simples", action="store_true", help="sem capa e sem sumário")
     a = ap.parse_args()
-    ORIGEM = os.path.join(PASTA, a.origem)
-    DOCX = os.path.join(PASTA, a.saida + ".docx")
-    PDF = os.path.join(PASTA, a.saida + ".pdf")
+    ORIGEM = os.path.join(PASTA_DOCUMENTACAO, a.origem)
+    DOCX = os.path.join(PASTA_DOCUMENTACAO, a.saida + ".docx")
+    PDF = os.path.join(PASTA_DOCUMENTACAO, a.saida + ".pdf")
 
     converter_docx(preparar_markdown(capa=not a.simples), sumario=not a.simples)
     if not a.simples:

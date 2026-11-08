@@ -636,7 +636,7 @@ with st.sidebar:
     </style>""")
     col_logo, col_nome = st.columns([1, 2], gap="small", vertical_alignment="center")
     with col_logo:
-        st.image(os.path.join(RAIZ, "assets", "logo_oqpnb.svg"), width=72)
+        st.image(os.path.join(RAIZ, "assets", "logo.svg"), width=72)
     with col_nome:
         st.markdown('<div style="font-size:1rem;font-weight:600;white-space:nowrap">Cinto Inteligente</div>',
                     unsafe_allow_html=True)

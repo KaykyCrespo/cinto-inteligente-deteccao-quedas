@@ -10,7 +10,7 @@ Dois sketches Arduino (ESP32) formam a camada de hardware do MVP:
 
 O PC consome os tópicos MQTT com `app.py` (painel) ou `interface_mvp_2.py` (terminal), na raiz do repositório.
 O passo a passo completo de instalação (Arduino IDE, pacote ESP32, drivers USB e gravação) está no
-manual, em `DOCUMENTACAO/Manual_Usuario_Operacao.pdf` (Seção 3.2).
+manual, em `DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf` (Seção 3.2).
 
 ## Fluxo de dados
 

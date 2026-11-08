@@ -57,7 +57,7 @@ A Figura 2 mostra o caminho de um ciclo de leitura, do sensor no cinto até o al
 
 **Figura 2 – Fluxograma do funcionamento completo do sistema**
 
-![Fluxograma do sistema](APOIO/IMAGENS/FLUXOGRAMA.jpeg)
+![Fluxograma do sistema](IMAGENS/FLUXOGRAMA.jpeg)
 
 Fonte: elaborado pelos autores (2026).
 
@@ -158,11 +158,11 @@ A antena não tem sensores; só precisa de alimentação.
 
 **Figura 3 – Disposição dos módulos no case do cinto**
 
-![Case do cinto](APOIO/IMAGENS/CASE%20CINTO.png)
+![Case do cinto](IMAGENS/CASE%20CINTO.png)
 
 **Figura 4 – Disposição dos módulos no case da antena**
 
-![Case da antena](APOIO/IMAGENS/CASE%20ANTENA.png)
+![Case da antena](IMAGENS/CASE%20ANTENA.png)
 
 Fonte das figuras: elaborado pelos autores (2026).
 
@@ -626,7 +626,7 @@ O arquivo `requirements-docs.txt` traz dependências opcionais, usadas apenas pa
 
 - Usa **SQLite**, sem servidor a instalar. O arquivo `dados/oqpnb.db` e as 7 tabelas (`cinto`, `antena`, `sessao`, `amostra`, `janela`, `queda`, `status_antena`) são criados **automaticamente** por `banco.py` (`CREATE TABLE IF NOT EXISTS`) na primeira abertura do painel. Não há migração manual.
 - O banco funciona em modo WAL e grava em lotes por uma thread dedicada. Os horários ficam em UTC (ISO-8601).
-- O DER, os modelos lógico e físico e o dicionário de dados estão em `DOCUMENTACAO/README_BANCO_DE_DADOS.md`.
+- O DER, os modelos lógico e físico e o dicionário de dados estão em `dados/README_BANCO_DE_DADOS.md`.
 
 #### 3.3.4 Variáveis de ambiente
 
@@ -913,77 +913,87 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 
 **Figura 7 – Barra lateral do painel**
 
-![Barra lateral com controles do sistema](APOIO/IMAGENS/prints/barra_lateral.png)
+![Barra lateral com controles do sistema](IMAGENS/prints/barra_lateral_numerada.png)
 
 Fonte: elaborado pelos autores (2026).
 
-1. Logo do sistema e nome do painel — identifica a aplicação e o projeto em execução.
-2. Seção de alertas de queda — ativa ou desativa o envio de notificações ao Telegram.
-3. Toggle de envio de alerta — liga e desliga a comunicação de emergência para o operador.
-4. Limiar de alarme — define a sensibilidade do detector de queda.
-5. Tempo para resetar o alerta — controla a duração do aviso na interface após a detecção.
-6. Controles de tela — atualiza automaticamente a interface e ajusta o intervalo de atualização.
-7. Gravação de amostras e reconexão — inicia a gravação dos dados brutos e restaura a conexão MQTT.
+1. **Enviar alerta de quedas:** liga ou desliga o envio de notificações ao Telegram.
+2. **Testar envio:** envia uma mensagem de teste para verificar a configuração do Telegram.
+3. **Limiar de alarme:** define a sensibilidade do detector de queda.
+4. **Tempo para resetar o alerta:** controla por quanto tempo o aviso permanece na interface.
+5. **Atualizar automaticamente:** liga ou desliga a atualização periódica do painel.
+6. **Intervalo (s):** define o período entre as atualizações automáticas da tela.
+7. **Gravar amostras:** inicia a gravação dos dados brutos em CSV e no banco de dados.
+8. **Reconectar:** refaz a conexão MQTT sem fechar o painel.
 
-**Figura 8 – Monitoramento em operação normal**
+**Figura 8 – Aba Monitoramento em operação**
 
-![Monitoramento em operação normal](APOIO/IMAGENS/prints/monitoramento_normal.png)
-
-Fonte: elaborado pelos autores (2026).
-
-1. Cartão do cinto — apresenta o estado operacional do equipamento e a última leitura recebida.
-2. Métrica de amostras recebidas — mostra o total acumulado de leituras do sistema.
-3. Taxa de amostras por segundo — indica a frequência de aquisição em tempo real.
-4. Antenas online — informa quantas estações estão ativas e respondendo ao broker.
-5. Status do eletrodo — sinaliza se os eletrodos estão conectados ou soltos.
-6. Gráfico de probabilidade de queda — acompanha a evolução do risco em janela recente.
-7. Tabela de quedas detectadas — registra os eventos anteriores para consulta e conferência.
-
-**Figura 9 – Status do sistema e antenas**
-
-![Status do sistema e cartões das antenas](APOIO/IMAGENS/prints/detalhes_status.png)
+![Cartão do cinto, métricas, probabilidade de queda e tabela de eventos com marcadores numerados](IMAGENS/prints/monitoramento_normal.png)
 
 Fonte: elaborado pelos autores (2026).
 
-1. Status do sistema — resumo geral de conexão, modelo, pacotes inválidos e total de quedas.
-2. Cartão de antena 1 — mostra o estado de conexão e o RSSI da leitura mais recente.
-3. Cartão de antena 2 — apresenta o mesmo resumo de operação de outra estação receptora.
-4. Cartão de cinto — indica a presença do equipamento, status do eletrodo e última leitura.
-5. Cartão de antena 3 — mostra o modo de operação e intensidade do sinal do canal BLE.
-6. Bloco de antenas — consolida o estado de todas as estações e facilita a comparação rápida.
+1. **Identificação do cinto:** mostra o equipamento selecionado no painel.
+2. **Status do cinto:** indica que o cinto está em condição normal neste instante.
+3. **Broker:** informa o estado da conexão MQTT com o computador central.
+4. **Amostras recebidas:** apresenta o total de amostras recebidas pelo painel.
+5. **Cintos ativos:** mostra quantos cintos estão enviando dados.
+6. **Antenas online:** indica quantas antenas estão conectadas ao sistema.
+7. **Quadrante:** exibe a região estimada; o traço indica que não havia quadrante disponível nesta captura.
+8. **Taxa:** mostra a frequência atual de recebimento das amostras, em hertz.
+9. **Status do eletrodo:** indica a condição dos eletrodos; nesta captura, aparecem soltos.
+10. **Status Telegram:** informa se o bot está ativo para envio de notificações.
+11. **Probabilidade de queda:** mostra a probabilidade atual e a barra visual correspondente.
+12. **Diagnóstico da janela:** informa quantas vezes a janela foi reiniciada por lacunas e há quanto tempo chegou a última leitura.
+13. **Gráfico de probabilidade:** acompanha as últimas janelas analisadas.
+14. **Limiar de alerta:** linha tracejada vermelha, configurada em 50% nesta captura.
+15. **Quedas detectadas:** lista os eventos registrados e seus dados, como data, hora, cinto, antena, probabilidade e quadrante.
 
-**Figura 10 – Mapa de localização e ambiente**
+**Figura 9 – Configuração do ambiente e sinal de ECG**
 
-![Mapa de localização indoor com antenas e posição do cinto](APOIO/IMAGENS/prints/detalhes_mapa.png)
-
-Fonte: elaborado pelos autores (2026).
-
-1. Área do mapa — representa o ambiente interno e o posicionamento das antenas no cômodo.
-2. Antena 1 — referência de posição para cálculo da localização do cinto.
-3. Antena 2 — outra referência do ambiente usada na triangulação por RSSI.
-4. Região do cinto — mostra a estimativa da posição do usuário no ambiente.
-5. Círculos de alcance — representam os raios estimados das antenas e a proximidade do sensor.
-6. Legenda do ambiente — explica os símbolos e a interpretação visual do mapa.
-
-**Figura 11 – Gráficos de sinais e ECG**
-
-![Gráficos de sinais e ECG](APOIO/IMAGENS/prints/detalhes_sinais_ecg.png)
+![Configuração do ambiente e gráfico de ECG com marcadores numerados](IMAGENS/prints/detalhes_mapa.png)
 
 Fonte: elaborado pelos autores (2026).
 
-1. Gráfico de aceleração — exibe a magnitude do movimento em tempo real.
-2. Gráfico de giroscópio — mostra a velocidade angular e variações bruscas.
-3. ECG bruto — apresenta o sinal do AD8232 para checar a qualidade do contato dos eletrodos.
+1. **Ambiente e posição das antenas:** define as dimensões do cômodo e as coordenadas X/Y das três antenas, em metros.
+2. **ECG bruto:** mostra os últimos cinco segundos do sinal captado pelo módulo AD8232.
 
-**Figura 12 – Exportação de dados**
+**Figura 10 – Mapa indoor e exportação de dados**
 
-![Bloco de exportação de dados](APOIO/IMAGENS/prints/detalhes_exportacao.png)
+![Mapa indoor e controles de exportação com marcadores numerados](IMAGENS/prints/detalhes_exportacao.png)
 
 Fonte: elaborado pelos autores (2026).
 
-1. Exportação de janelas — gera o CSV das janelas analisadas pela lógica de detecção.
-2. Exportação de quedas — salva os eventos de queda detectados em arquivo tabular.
-3. Exportação de amostras — baixa os dados brutos e o banco do sistema para manutenção e análise.
+1. **Mapa do ambiente:** mostra os quadrantes e as posições das antenas e do cinto estimadas pelo sistema.
+2. **Legenda de localização:** descreve os raios estimados, a antena mais próxima e a confiança da posição apresentada.
+3. **Exportação da sessão:** disponibiliza CSV das janelas analisadas e das quedas; para baixar amostras brutas, use primeiro **Gravar amostras** na barra lateral.
+4. **Arquivos do banco:** permite baixar as amostras e o status das antenas em CSV, além do banco SQLite (`.db`) para consulta e manutenção.
+
+**Figura 11 – Status do sistema, cinto e antenas**
+
+![Indicadores do sistema e cartões do cinto e antenas com marcadores numerados](IMAGENS/prints/detalhes_status.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. **Broker:** indica o estado da conexão MQTT com o computador central.
+2. **Amostras recebidas:** mostra o total de amostras recebidas pelo painel.
+3. **Pacotes inválidos:** conta pacotes que não puderam ser interpretados.
+4. **Modelo:** mostra o arquivo do modelo carregado e o limiar de detecção em uso.
+5. **Telegram:** indica se o bot está ativo e mostra o resultado do último envio.
+6. **Quadrante:** exibe a região estimada do ambiente; o traço indica que não havia quadrante disponível nessa captura.
+7. **Taxa:** mostra a frequência atual de recebimento das amostras, em hertz.
+8. **Amostras perdidas:** indica a porcentagem de amostras não recebidas.
+9. **Janelas reiniciadas:** conta reinicializações de janelas após interrupções no fluxo de dados.
+10. **Quantidade de quedas:** mostra o total de possíveis quedas registradas.
+11. **Identificação e conexão do cinto:** mostra o identificador do cinto e se está online.
+12. **Antena mais próxima:** informa qual antena está recebendo o sinal mais forte e o RSSI correspondente.
+13. **Status do eletrodo:** indica se os eletrodos estão conectados ou soltos.
+14. **Última leitura:** mostra há quanto tempo o cinto enviou dados pela última vez.
+15. **Estado ONLINE:** o indicador verde informa que a Anchor 1 está conectada.
+16. **Modo:** mostra como a antena está recebendo os dados do cinto; nesta captura, por GATT.
+17. **RSSI (dBm):** indica a intensidade recebida do sinal Bluetooth; valores menos negativos representam sinal mais forte.
+18. **Idade do RSSI:** o selo cinza mostra há quantos segundos o valor do sinal foi atualizado.
+
+As outras antenas exibem os mesmos campos e não foram numeradas individualmente.
 
 **Aba Detalhes:**
 
