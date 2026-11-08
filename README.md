@@ -14,7 +14,7 @@ quadrante do ambiente, dispara alerta no Telegram e persiste tudo em SQLite.
 | [`dados/README_BANCO_DE_DADOS.md`](dados/README_BANCO_DE_DADOS.md) | Banco SQLite: DER, modelos lógico e físico, dicionário de dados |
 | [`DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf`](DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf) | Guia do Usuário e Manual de Operação (fonte: `DOCUMENTACAO/MANUAL/MANUAL_USUARIO_OPERACAO.md`) |
 | [`DOCUMENTACAO/VIDEO TECNICO/Roteiro_Video.pdf`](DOCUMENTACAO/VIDEO%20TECNICO/Roteiro_Video.pdf) | Roteiro e materiais do vídeo técnico (fonte: `DOCUMENTACAO/VIDEO TECNICO/ROTEIRO_VIDEO.md`) |
-| [`DOCUMENTACAO/FERRAMENTAS/gerar_documentos.py`](DOCUMENTACAO/FERRAMENTAS/gerar_documentos.py) | Gera o manual ou o roteiro em DOCX e PDF |
+| [`DOCUMENTACAO/gerar_documentos.py`](DOCUMENTACAO/gerar_documentos.py) | Gera o manual ou o roteiro em DOCX e PDF |
 | [`dados/SISFALL/README_ORIGEM_SISFALL.md`](dados/SISFALL/README_ORIGEM_SISFALL.md) | Nota original sobre a origem do dataset SisFall (terceiros) |
 | `dados/SISFALL/SisFall_dataset/Readme.txt` | Descrição oficial do SisFall (atividades, voluntários, sensores) |
 
@@ -47,7 +47,7 @@ TCC MVP/
 └── DOCUMENTACAO/
     ├── MANUAL/            fonte e arquivos PDF/DOCX do manual
     ├── VIDEO TECNICO/     roteiro, gravações e arquivos PDF/DOCX
-    ├── FERRAMENTAS/       gerador compartilhado de documentos
+    ├── gerar_documentos.py gera o manual e o roteiro em DOCX/PDF
     ├── Power Point - Apresentação.pptx
     ├── esquemas/          diagramas (arquitetura, pipeline, métricas) e seus scripts
     ├── APOIO/             material de apoio do curso

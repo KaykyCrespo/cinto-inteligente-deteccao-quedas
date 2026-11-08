@@ -12,10 +12,10 @@ O projeto está enquadrado na vertente SmartCity – Cidades Inteligentes e Infr
 
 A equipe executora é composta pelos seguintes integrantes, com as respectivas funções no projeto:
 
-- Aluisio Pereira Alves (RA N135891) – pesquisador e redator;
-- Enzo Orlandi Gomes (RA G788EJ5) – responsável pelo sistema embarcado;
-- Erick de Brito Carvalho (RA G78HED3) – arquiteto de soluções e desenvolvedor de software;
-- Kayky Crespo dos Santos (RA G839226) – Product Owner, gerente de projeto e Scrum Master.
+- Aluisio Pereira Alves (RA N135891) – Pesquisador e redator;
+- Enzo Orlandi Gomes (RA G788EJ5) – Responsável pelo sistema embarcado;
+- Erick de Brito Carvalho (RA G78HED3) – Arquiteto de soluções e desenvolvedor de software;
+- Kayky Crespo dos Santos (RA G839226) – Product owner, gerente de projeto e Scrum master.
 
 ### 1.2 Enquadramento na vertente SmartCity
 
@@ -51,6 +51,9 @@ Fonte: elaborado pelos autores (2026).
 | Persistência | SQLite (`banco.py`), CSV | SQL |
 | Interface | Painel Streamlit (`app.py`), bot do Telegram (`alerta_telegram.py`) | HTTP (navegador), HTTPS (API do Telegram) |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 ### 1.4 Fluxo de funcionamento
 
 A Figura 2 mostra o caminho de um ciclo de leitura, do sensor no cinto até o alerta.
@@ -64,8 +67,6 @@ Fonte: elaborado pelos autores (2026).
 ---
 
 ## Seção 2 — Manual de Instalação e Montagem do Hardware
-
-O conjunto tem **1 cinto** e **3 antenas** idênticas (`anchor01`, `anchor02`, `anchor03`).
 
 ### 2.1 Lista de materiais (BOM)
 
@@ -86,7 +87,10 @@ O conjunto tem **1 cinto** e **3 antenas** idênticas (`anchor01`, `anchor02`, `
 | 2–4 | Insertos e parafusos | Rosca de latão M3 + parafuso M3 | — | Fixação da tampa |
 | — | Fios | Fio de cobre flexível (vermelho/preto para energia; cores diversas para sinal) | — | Ligações soldadas |
 
-**Antena (por unidade; montar 3)**
+Fonte: Elaborado pelos autores (2026).
+
+
+**Antena (por unidade; montar 3: Anchor 1, Anchor 2, Anchor 3)**
 
 | Qtd | Componente | Modelo / part number | Tensão de operação | Função no circuito |
 |---|---|---|---|---|
@@ -99,6 +103,9 @@ O conjunto tem **1 cinto** e **3 antenas** idênticas (`anchor01`, `anchor02`, `
 | 2 | Insertos e parafusos | Rosca de latão M3 + parafuso M3 | — | Fixação da tampa |
 | — | Fios | Fio de cobre | — | Ligações soldadas |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 **Infraestrutura**
 
 | Qtd | Item | Observação |
@@ -107,6 +114,9 @@ O conjunto tem **1 cinto** e **3 antenas** idênticas (`anchor01`, `anchor02`, `
 | 1 | Roteador ou ponto de acesso Wi-Fi | Rede de **2,4 GHz** (o ESP32 não opera em 5 GHz) |
 | 1 | Cabo USB-C (dados) | Gravação do cinto |
 | 1 | Cabo Micro-USB (dados) | Gravação das antenas |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 ### 2.2 Pinagem (pinout)
 
@@ -127,6 +137,9 @@ O conjunto tem **1 cinto** e **3 antenas** idênticas (`anchor01`, `anchor02`, `
 | 5V | MT3608 VOUT+ | Alimentação 5 V | |
 | GND | MT3608 VOUT− | Terra comum | |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 **Cinto — alimentação**
 
 | Origem | Destino |
@@ -140,6 +153,9 @@ O conjunto tem **1 cinto** e **3 antenas** idênticas (`anchor01`, `anchor02`, `
 | MT3608 VOUT− | ESP32-C3 GND |
 | Cabo P2 dos eletrodos | Conector de 3,5 mm do AD8232 (RA, LA, RL) |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 **Antena — ESP32 DevKit V1**
 
 A antena não tem sensores; só precisa de alimentação.
@@ -151,6 +167,9 @@ A antena não tem sensores; só precisa de alimentação.
 | TP4056 OUT− | MT3608 VIN− |
 | MT3608 VOUT+ (5,0 V) | ESP32 VIN |
 | MT3608 VOUT− | ESP32 GND |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 ### 2.3 Diagrama esquemático e montagem
 
@@ -191,6 +210,9 @@ Fonte das figuras: elaborado pelos autores (2026).
 | Trilho de 3,3 V | Regulador linear da placa ESP32-C3 (alimenta MPU6050 e AD8232) | Regulador AMS1117 do DevKit (só o ESP32) |
 | Carga (TP4056) | 1 A, corte em 4,2 V | 1 A, corte em 4,2 V |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 **Consumo por componente** (valores adotados pela equipe; o do ESP32 é o de pior caso)
 
 | Dispositivo | Componente | Corrente |
@@ -201,6 +223,9 @@ Fonte das figuras: elaborado pelos autores (2026).
 | **Cinto** | **Total** | **≈ 355 mA** |
 | Antena | ESP32 DevKit V1 | 350 mA |
 | **Antena** | **Total** | **350 mA** |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 Os sensores recebem 3,3 V de um regulador linear, que deixa passar a mesma corrente que recebe; por isso o total vale também para a linha de 5 V.
 
@@ -256,6 +281,9 @@ em que:
 | $I_{bat}$ (bateria em 3,7 V) | 2,09 / 3,7 ≈ **565 mA** | 2,06 / 3,7 ≈ **556 mA** |
 | $I_{bat}$ com bateria quase vazia (3,3 V) | 2,09 / 3,3 ≈ **633 mA** | 2,06 / 3,3 ≈ **624 mA** |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 A corrente na bateria (565 mA) é maior que a do circuito (355 mA) porque a bateria tem tensão menor que a saída: para entregar a mesma potência, ela precisa fornecer mais corrente e ainda cobrir a perda do conversor. À medida que a bateria descarrega, a tensão cai e a corrente sobe. Essas correntes ficam bem abaixo do limite do MT3608 (chave interna de 4 A). No cinto, elas se dividem entre as duas células em paralelo, cerca de 0,3 A em cada.
 
 **Autonomia**
@@ -300,6 +328,9 @@ em que:
 | Cinto | 2 × 1000 mAh em paralelo | 2 × 1,0 × 3,7 = 7,4 Wh | 7,4 × 0,9 = 6,66 Wh | 2,09 W | **6,66 / 2,09 ≈ 3,19 h (3 h 11 min)** |
 | Antena | 1 × 1000 mAh | 1 × 1,0 × 3,7 = 3,7 Wh | 3,7 × 0,9 = 3,33 Wh | 2,06 W | **3,33 / 2,06 ≈ 1,62 h (1 h 37 min)** |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 A conversão para minutos usa a parte decimal: 0,19 h × 60 ≈ 11 min e 0,62 h × 60 ≈ 37 min.
 
 **Conferência em mAh:** a mesma autonomia sai dividindo a capacidade útil pela corrente na bateria.
@@ -332,6 +363,9 @@ em que:
 |---|---|---|
 | Cinto (2 × 1000 mAh) | 1,2 × 2,0 Ah / 1 A | **≈ 2,4 h (2 h 24 min)** |
 | Antena (1 × 1000 mAh) | 1,2 × 1,0 Ah / 1 A | **≈ 1,2 h (1 h 12 min)** |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 **Recarga com o aparelho ligado:** o TP4056 entrega no máximo 1 A no total, e parte dessa corrente vai para o circuito. No cinto, o circuito consome cerca de 0,565 A, então sobram 1 − 0,565 ≈ 0,44 A para a bateria, e o tempo passa a ser $1{,}2 \times \frac{2{,}0}{0{,}44} \approx 5{,}5$ h, mais que o dobro. Na antena, 1 A equivale a 1C para uma célula de 1000 mAh; confira se a célula aceita essa corrente de carga.
 
@@ -369,6 +403,9 @@ em que $P_{reg}$ é a potência transformada em calor no regulador (W), $V_{5V}$
 | TP4056 (início, bateria vazia em 3,0 V) | (5 − 3,0) V × 1 A | ≈ 2,0 W | Pior momento da carga |
 | MT3608 | 2,09 − 1,78 (cinto); 2,06 − 1,75 (antena) | ≈ 0,31 W | Morno; manter folga no case |
 | Regulador 3,3 V da placa | 1,7 × 0,355 (cinto); 1,7 × 0,350 (antena) | ≈ 0,60 W | Aquece; a tampa perfurada da antena ajuda a ventilar |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 O aquecimento de cada componente pode ser estimado por
 
@@ -472,6 +509,9 @@ cd cinto-inteligente-deteccao-quedas
 | Navegador | Chrome, Edge ou Firefox atualizado |
 | Rede | Wi-Fi 2,4 GHz com o computador e as antenas na mesma sub-rede |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 **Dependências Python** (`requirements.txt`):
 
 | Pacote | Versão | Uso |
@@ -484,6 +524,9 @@ cd cinto-inteligente-deteccao-quedas
 | scikit-learn | 1.9.1 | Random Forest |
 | joblib | 1.4.2 | Carga do modelo |
 | altair | 6.0.0 | Gráficos |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 ### 3.2 Configuração da borda (firmware)
 
@@ -504,6 +547,9 @@ cd cinto-inteligente-deteccao-quedas
 | Antena — ESP32 DevKit V1 | Chip **CP2102** (Silicon Labs) | Instale o **CP210x Universal Windows Driver** da página "CP210x USB to UART Bridge VCP Drivers" da Silicon Labs (descompacte, clique com o botão direito em `silabser.inf` → **Instalar**) |
 | Antena — clone com chip CH340 | CH340/CH341 | Driver **CH341SER** da WCH |
 | Cinto — ESP32-C3 Super Mini | USB nativo (USB Serial/JTAG) | Nenhum: o Windows 10/11 reconhece sozinho |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 **Para conferir:**
 
@@ -550,6 +596,9 @@ cd cinto-inteligente-deteccao-quedas
 | `oqpnb/anchor/<ID_ANTENA>` | `{OQPNB;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos;ecg}` (com GATT) ou `{OQPNB;id_antena;rssi;id_cinto;;;;;;;;}` (só RSSI) |
 | `oqpnb/anchor/<ID_ANTENA>/status` | `online` / `offline` (mensagem retida, com Last Will) |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 #### 3.2.4 Configurar e gravar o firmware do cinto (`Arduino/cinto_mvp_v1/cinto_mvp_v1.ino`)
 
 1. Confira o topo do arquivo:
@@ -572,6 +621,9 @@ cd cinto-inteligente-deteccao-quedas
 | `FFF1` (write) | A antena escreve o `CODIGO_AMBIENTE`; o cinto só transmite depois de validar (prazo de 5 s) |
 | `FFF2` (notify) | Pacote a 100 Hz: `{OQPNB;id_cinto;ax;ay;az;gx;gy;gz;eletrodos;sinal_ad8232}` |
 | Advertising | Manufacturer Data `{OQPNB;id_cinto}`; conectável a cada 20–40 ms sem GATT; beacon não conectável a cada 100 ms com GATT ativo |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 Uma antena por vez se conecta por GATT e repassa os sensores; as outras medem o RSSI dos anúncios.
 
@@ -738,6 +790,9 @@ A IA faz **classificação binária supervisionada** de janelas de movimento: pa
 | **Sensor usado** | Acelerômetro ADXL345 (±16 g) e giroscópio ITG3200 (±2000 °/s) presos à cintura, a 200 Hz |
 | **Volume após janelamento** | **122.572 janelas** (28.768 de queda e 93.804 de atividade) |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 **Pré-processamento** (`scripts/treino_sisfall.py`):
 
 1. Conversão das contagens do SisFall para g e °/s.
@@ -758,6 +813,9 @@ A IA faz **classificação binária supervisionada** de janelas de movimento: pa
 | `post_std` | Desvio de \|a\| no último 0,5 s (imobilidade após o impacto) | 0,04 |
 | `amin` | Mínimo de \|a\| (queda livre) | 0,04 |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 ### 4.3 Arquitetura do modelo e treinamento
 
 **Algoritmo:** Random Forest (`sklearn.ensemble.RandomForestClassifier`).
@@ -776,6 +834,9 @@ A IA faz **classificação binária supervisionada** de janelas de movimento: pa
 | `min_samples_leaf` | 2 | Reduz o sobreajuste |
 | `class_weight` | `balanced_subsample` | Compensa o desbalanceamento (23% de janelas de queda) |
 | Limiar de decisão | 0,50 | Equilíbrio entre sensibilidade e especificidade (Seção 4.4) |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 **Validação:** **validação cruzada por voluntário (GroupKFold, 5 folds)**. Nenhum voluntário aparece ao mesmo tempo no treino e no teste. Isso evita o vazamento causado por janelas sobrepostas da mesma pessoa e simula o uso por alguém que o modelo nunca viu. O modelo final é treinado com todos os dados e salvo em `modelos/modelo_mvp_8g.joblib`.
 
@@ -796,6 +857,9 @@ As métricas são calculadas **por registro**: um registro de queda conta como d
 | **Real: queda (1.798)** | VP = 1.777 | FN = 21 |
 | **Real: atividade (2.707)** | FP = 128 | VN = 2.579 |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 | Métrica | Fórmula | Valor |
 |---|---|---|
 | Revocação (sensibilidade) | VP / (VP + FN) | **98,8%** |
@@ -803,6 +867,9 @@ As métricas são calculadas **por registro**: um registro de queda conta como d
 | Precisão | VP / (VP + FP) | **93,3%** |
 | F1-score | 2·P·R / (P + R) | **96,0%** |
 | Acurácia | (VP + VN) / total | **96,7%** |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 em que VP (verdadeiros positivos) são quedas detectadas como queda; FN (falsos negativos) são quedas não detectadas; FP (falsos positivos) são atividades normais que geraram alarme; VN (verdadeiros negativos) são atividades normais sem alarme; P é a precisão; R é a revocação; e total é a soma VP + FN + FP + VN (4.505 registros).
 
@@ -818,6 +885,9 @@ em que VP (verdadeiros positivos) são quedas detectadas como queda; FN (falsos 
 | 0,6 | 98,4% | 96,5% |
 | 0,7 | 97,9% | 97,8% |
 | 0,8 | 97,0% | 98,6% |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 **Limitações conhecidas:**
 
@@ -835,6 +905,9 @@ Foram usadas ferramentas de IA generativa (modelos de linguagem) como apoio na c
 | Claude (Anthropic) | claude-opus-5-5, usado no aplicativo | 14/09/2026 a 12/11/2026 | Organização do material do grupo, revisão ortográfica, apoio para as normas ABNT e criação de diagramas e tabelas | Todas as partes do texto foram revisadas, com taxa de correção de 80% sobre todo o documento |
 | Claude (Anthropic) | Sonnet 4.6 low, usado no aplicativo | 14/09/2026 a 12/11/2026 | Desenvolvimento do sistema web e ajustes no código dos eletrônicos | Código inteiramente revisado pelos integrantes; refatoração de cerca de 75% do código |
 | ChatGPT (OpenAI) | ChatGPT 5.6 Sol extra alto | 14/10/2026 a 12/11/2026 | Desenvolvimento do sistema web e ajustes no código dos eletrônicos | Código inteiramente revisado pelos integrantes; refatoração de cerca de 75% do código |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser disponibilizados ao orientador e à banca, se solicitado. A declaração completa, assinada, está no Apêndice A do TCC.
 
@@ -863,6 +936,9 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 | Código de ambiente | Monitor Serial do cinto | Código validado |
 | Fluxo de dados | Painel → Monitoramento | Amostras subindo, ~100 Hz |
 | Eletrodos | Painel → Status Eletrodo; LED do cinto | "Conectado"; LED apagado |
+
+Fonte: Elaborado pelos autores (2026).
+
 
 **Calibração de repouso dos sensores:**
 
@@ -904,6 +980,9 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 | Gravar amostras | Grava os dados brutos em CSV e no banco (arquivos divididos a cada 60 min) |
 | Reconectar | Refaz a conexão MQTT sem fechar o painel |
 
+Fonte: Elaborado pelos autores (2026).
+
+
 **Aba Monitoramento:**
 
 - **Cartão do cinto:** em situação normal, mostra o status normal. Em **POSSÍVEL QUEDA**, mostra em destaque a probabilidade, data, hora, antena mais próxima, quadrante e a contagem regressiva do aviso.
@@ -928,7 +1007,7 @@ Fonte: elaborado pelos autores (2026).
 
 **Figura 8 – Aba Monitoramento em operação**
 
-![Cartão do cinto, métricas, probabilidade de queda e tabela de eventos com marcadores numerados](IMAGENS/prints/monitoramento_normal.png)
+![Cartão do cinto, métricas, probabilidade de queda e tabela de eventos com marcadores numerados](IMAGENS/prints/monitoramento_numerada.png)
 
 Fonte: elaborado pelos autores (2026).
 
@@ -948,29 +1027,9 @@ Fonte: elaborado pelos autores (2026).
 14. **Limiar de alerta:** linha tracejada vermelha, configurada em 50% nesta captura.
 15. **Quedas detectadas:** lista os eventos registrados e seus dados, como data, hora, cinto, antena, probabilidade e quadrante.
 
-**Figura 9 – Configuração do ambiente e sinal de ECG**
+**Figura 9 – Status do sistema, cinto e antenas**
 
-![Configuração do ambiente e gráfico de ECG com marcadores numerados](IMAGENS/prints/detalhes_mapa.png)
-
-Fonte: elaborado pelos autores (2026).
-
-1. **Ambiente e posição das antenas:** define as dimensões do cômodo e as coordenadas X/Y das três antenas, em metros.
-2. **ECG bruto:** mostra os últimos cinco segundos do sinal captado pelo módulo AD8232.
-
-**Figura 10 – Mapa indoor e exportação de dados**
-
-![Mapa indoor e controles de exportação com marcadores numerados](IMAGENS/prints/detalhes_exportacao.png)
-
-Fonte: elaborado pelos autores (2026).
-
-1. **Mapa do ambiente:** mostra os quadrantes e as posições das antenas e do cinto estimadas pelo sistema.
-2. **Legenda de localização:** descreve os raios estimados, a antena mais próxima e a confiança da posição apresentada.
-3. **Exportação da sessão:** disponibiliza CSV das janelas analisadas e das quedas; para baixar amostras brutas, use primeiro **Gravar amostras** na barra lateral.
-4. **Arquivos do banco:** permite baixar as amostras e o status das antenas em CSV, além do banco SQLite (`.db`) para consulta e manutenção.
-
-**Figura 11 – Status do sistema, cinto e antenas**
-
-![Indicadores do sistema e cartões do cinto e antenas com marcadores numerados](IMAGENS/prints/detalhes_status.png)
+![Indicadores do sistema e cartões do cinto e antenas com marcadores numerados](IMAGENS/prints/detalhes_status_numerada.png)
 
 Fonte: elaborado pelos autores (2026).
 
@@ -995,6 +1054,55 @@ Fonte: elaborado pelos autores (2026).
 
 As outras antenas exibem os mesmos campos e não foram numeradas individualmente.
 
+**Figura 10 – Tabelas RSSI e Histórico de Quedas**
+
+![Captura do painel com somente a Tabela RSSI e o Histórico de Quedas numerados](IMAGENS/prints/tabela%20RSSI%20e%20historico%20de%20quedas_numerada.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. **Tabela RSSI por Cinto × Antena:** apresenta, para cada antena, o RSSI atual e médio, a origem do dado (GATT ou Advertising), a quantidade de amostras e a janela de conexão.
+2. **Histórico de Quedas:** lista os eventos registrados com data, hora, cinto, antena, probabilidade, aceleração máxima, giroscópio, inclinação e quadrante.
+
+**Figura 11 – Gráficos do acelerômetro e do giroscópio**
+
+![Gráficos de acelerômetro e giroscópio com marcadores numerados](IMAGENS/prints/graficos_sinais_numerados.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. **Acelerômetro:** mostra a magnitude da aceleração do cinto, em g, nos últimos cinco segundos.
+2. **Giroscópio:** mostra a magnitude da velocidade angular, em graus por segundo, nos últimos cinco segundos.
+
+**Figura 12 – Configuração do ambiente e sinal de ECG**
+
+![Configuração do ambiente e gráfico de ECG com marcadores numerados](IMAGENS/prints/config_localizacao_ECG_numerada.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. **Ambiente e posição das antenas:** define as dimensões do cômodo e as coordenadas X/Y das três antenas, em metros.
+2. **ECG bruto:** mostra os últimos cinco segundos do sinal captado pelo módulo AD8232.
+
+**Figura 13 – Mapa indoor e exportação de dados**
+
+![Mapa indoor, legenda de raio estimado e seis botões de exportação numerados](IMAGENS/prints/mapa_exportacao_dados_numerada.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. **Raio estimado:** explica o símbolo da antena mais próxima e o das demais antenas no mapa.
+2. **Janelas analisadas:** baixa em CSV as janelas processadas na sessão.
+3. **Quedas detectadas:** baixa em CSV os eventos de possível queda registrados.
+4. **Amostras:** informa que é preciso iniciar a gravação pela barra lateral para disponibilizar os dados brutos.
+5. **Amostras no banco:** baixa em CSV as amostras gravadas no banco de dados.
+6. **Status das antenas:** baixa em CSV o histórico de estado das antenas.
+7. **Banco SQLite:** baixa o arquivo completo `.db` para consulta ou manutenção.
+
+**Figura 14 – Alerta de possível queda no Telegram**
+
+![Mensagem de alerta de possível queda recebida no Telegram, com o corpo da mensagem numerado](IMAGENS/prints/telegram_alerta_queda_numerada.png)
+
+Fonte: elaborado pelos autores (2026).
+
+1. **Mensagem de alerta:** apresenta o cinto, horário, antena mais próxima, quadrante, confiança e os dados de aceleração e inclinação associados ao evento.
+
 **Aba Detalhes:**
 
 - **Status do Sistema:** modelo carregado, limiar, pacotes inválidos, amostras perdidas, janelas reiniciadas, total de quedas e cartões das antenas (GATT ou Advertising, RSSI, antena mais próxima).
@@ -1010,6 +1118,8 @@ As outras antenas exibem os mesmos campos e não foram numeradas individualmente
 
 ### 5.3 Resolução de problemas
 
+**USB e rede Wi-Fi**
+
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
 | USB / gravação | Placa não aparece em **Portas (COM)** | Driver ausente ou cabo só de carga | Instale o driver CP210x ou CH340 (Seção 3.2.2); troque por cabo de dados |
@@ -1017,6 +1127,12 @@ As outras antenas exibem os mesmos campos e não foram numeradas individualmente
 | USB / gravação | Monitor Serial do cinto vazio | `USB CDC On Boot` desativado | Ative-o e grave de novo |
 | USB / gravação | `Sketch too big` | Partição padrão pequena para Wi-Fi + BLE | **Ferramentas → Partition Scheme → Huge APP (3MB No OTA)** |
 | Rede | Antena não conecta ao Wi-Fi | Rede de 5 GHz, SSID/senha errados ou sinal fraco | Use rede de 2,4 GHz; confira `WIFI_SSID`/`WIFI_PASSWORD` |
+Fonte: Elaborado pelos autores (2026).
+
+**MQTT, BLE e fluxo de dados**
+
+| Categoria | Sintoma | Causa provável | Procedimento corretivo |
+|---|---|---|---|
 | MQTT | Antena com Wi-Fi conectado, mas `[MQTT] Conectando ao broker ... Falhou (rc=...)` | IP do broker errado, firewall ou listener ausente | Confira `MQTT_BROKER` com `ipconfig`; regra de firewall da porta 1883; `listener 1883 0.0.0.0`; rede como **Privada** |
 | MQTT | Painel mostra **Erro MQTT** | Mosquitto parado | `Restart-Service mosquitto` e clique em **Reconectar** |
 | MQTT | Antena oscila entre online e offline | Alimentação instável ou Wi-Fi fraco | Carregue a bateria, confira os 5,0 V do MT3608, aproxime do roteador |
@@ -1025,6 +1141,12 @@ As outras antenas exibem os mesmos campos e não foram numeradas individualmente
 | Perda de pacotes | Taxa bem abaixo de 100 amostras/s e "amostras perdidas" crescendo | Interferência em 2,4 GHz, cinto longe da antena GATT, rede congestionada | Afaste as antenas de roteadores e micro-ondas; aproxime o cinto; reduza outros dispositivos na rede |
 | Perda de pacotes | "Janelas reiniciadas" aumentando | Lacunas > 0,3 s no fluxo (troca de antena GATT) | Normal durante reconexões; se constante, siga o item anterior |
 | Formato | "Pacotes com formato inválido" | Firmware de versão diferente do painel | Grave `cinto_mvp_v1` e `anchor_mvp_v1` deste repositório |
+Fonte: Elaborado pelos autores (2026).
+
+**Sensores, IA e localização**
+
+| Categoria | Sintoma | Causa provável | Procedimento corretivo |
+|---|---|---|---|
 | Sensor | Status Eletrodo "Solto" / LED aceso | Eletrodo descolado, gel seco ou cabo P2 frouxo | Troque os eletrodos e encaixe o P2 até o fim |
 | Sensor | ECG muito ruidoso ou saturado | Movimento, mau contato ou interferência de 60 Hz | Limpe a pele, use eletrodos novos, mantenha o usuário parado na verificação |
 | Sensor | Aceleração em repouso longe de 1 g | MPU solto no case ou faixa alterada no firmware | Fixe o módulo; confirme ±8 g / ±2000 °/s em `iniciarMPU()` |
@@ -1032,11 +1154,19 @@ As outras antenas exibem os mesmos campos e não foram numeradas individualmente
 | IA | Quedas não detectadas | Limiar alto, cinto mal posicionado ou faixas do MPU diferentes das do modelo | Reduza o limiar; cinto na cintura, à frente; retreine se mudar as faixas |
 | IA | "Modelo indisponível" | Arquivo `.joblib` ausente ou versão do scikit-learn diferente | Confira `modelos/modelo_mvp_8g.joblib`; reinstale com `pip install -r requirements.txt` |
 | Localização | Quadrante instável ou errado | Sombreamento corporal, antenas colineares, calibração ausente | Reposicione as antenas fora de linha; calibre o RSSI (Seção 5.1); interprete como região |
+Fonte: Elaborado pelos autores (2026).
+
+**Telegram e operação**
+
+| Categoria | Sintoma | Causa provável | Procedimento corretivo |
+|---|---|---|---|
 | Telegram | Toggle desabilitado | Variáveis `OQPNB_TG_TOKEN`/`OQPNB_TG_CHAT` não definidas | Defina-as e reabra o painel na mesma janela do PowerShell |
 | Telegram | Erro **403 – bot was blocked by the user** | O destinatário bloqueou o bot | No Telegram, abra o bot, desbloqueie e envie `/start` |
 | Telegram | Erro 401 / 404 | Token inválido ou revogado | Gere um novo token no @BotFather |
 | Energia | ESP32 reinicia sozinho (brownout) | Bateria fraca ou MT3608 abaixo de 5 V | Carregue a bateria; reajuste o MT3608 para 5,0 V |
 | Painel | `Port 8501 is already in use` | Outra instância do Streamlit aberta | Feche a outra janela ou use `--server.port 8502` |
+Fonte: Elaborado pelos autores (2026).
+
 
 ### 5.4 Desligamento seguro e manutenção preventiva
 
@@ -1060,3 +1190,5 @@ As outras antenas exibem os mesmos campos e não foram numeradas individualmente
 | Ao atualizar o firmware | Gravar cinto e antenas com a mesma versão do repositório (Seção 3.2); manter o mesmo `CODIGO_AMBIENTE` |
 | Ao atualizar o software | `git pull`; `pip install -r requirements.txt`; rodar os testes automatizados |
 | Periodicamente | Trocar o token do Telegram se ele tiver sido exposto e nunca versioná-lo |
+
+Fonte: Elaborado pelos autores (2026).

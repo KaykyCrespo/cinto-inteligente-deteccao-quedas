@@ -35,10 +35,43 @@ NATUREZA = ("Guia do Usuário e Manual de Operação do conjunto prototipado, ap
             "na vertente SmartCity – Cidades Inteligentes e Infraestrutura Urbana.")
 
 
+def adicionar_fontes_tabelas(texto):
+    linhas = texto.splitlines()
+    resultado = []
+
+    def linha_tabela(linha):
+        linha = linha.strip()
+        return linha.startswith("|") and linha.endswith("|")
+
+    def linha_separadora(linha):
+        colunas = linha.strip().strip("|").split("|")
+        return len(colunas) >= 2 and all(re.fullmatch(r"\s*:?-{3,}:?\s*", coluna) for coluna in colunas)
+
+    indice = 0
+    while indice < len(linhas):
+        if (indice + 1 < len(linhas) and linha_tabela(linhas[indice])
+                and linha_separadora(linhas[indice + 1])):
+            resultado.extend(linhas[indice:indice + 2])
+            indice += 2
+            while indice < len(linhas) and linha_tabela(linhas[indice]):
+                resultado.append(linhas[indice])
+                indice += 1
+            proxima_linha = indice
+            while proxima_linha < len(linhas) and not linhas[proxima_linha].strip():
+                proxima_linha += 1
+            if not (proxima_linha < len(linhas) and linhas[proxima_linha].strip().startswith("Fonte:")):
+                resultado.extend(["", "Fonte: Elaborado pelos autores (2026).", ""])
+            continue
+        resultado.append(linhas[indice])
+        indice += 1
+    return "\n".join(resultado)
+
+
 def preparar_markdown(capa=True):
     with open(ORIGEM, encoding="utf-8") as f:
         texto = f.read()
     if capa:
+        texto = adicionar_fontes_tabelas(texto)
         texto = re.sub(r"\A# .*\n", "", texto)                # o título vai para a capa
         texto = re.sub(r"\*\*(.+?)\*\*", r"\1", texto)        # ABNT: sem negrito no corpo do texto
     texto = re.sub(r"(?m)^---\s*$\n", "", texto)
@@ -46,6 +79,7 @@ def preparar_markdown(capa=True):
     texto = re.sub(r"(?m)^(## Seção )", lambda m: (QUEBRA_SECAO if capa and next(secoes) == 0 else QUEBRA)
                    + m.group(1), texto)
     texto = re.sub(r"\]\(([^)]*%20[^)]*)\)", lambda m: "](<" + m.group(1).replace("%20", " ") + ">)", texto)
+    texto = re.sub(r"(?m)^(### 3\.2 )", lambda m: QUEBRA + m.group(1), texto)
     return texto
 
 
@@ -167,18 +201,53 @@ def formatar_no_word(capa=True):
         for nivel in (-20, -21, -22):                                             # Sumário 1 a 3
             estilo(nivel, tam=12, entrelinha=0, antes=0, depois=6, recuo=0)
 
-        for t in range(1, doc.Tables.Count + 1):
-            tb = doc.Tables(t)
+        for table_index in range(1, doc.Tables.Count + 1):
+            tb = doc.Tables(table_index)
             tb.Borders.Enable = True
             tb.Range.Font.Size = 10
             pf = tb.Range.ParagraphFormat
             pf.Alignment, pf.FirstLineIndent, pf.LineSpacingRule = 0, 0, 0
             pf.SpaceBefore, pf.SpaceAfter = 0, 0
+            tb.AutoFitBehavior(1)
+            tb.AutoFitBehavior(2)
+
+            column_count = tb.Columns.Count
+            longest_cells = []
+            for column_index in range(1, column_count + 1):
+                longest_cell = 0
+                for row_index in range(1, tb.Rows.Count + 1):
+                    cell_text = tb.Cell(row_index, column_index).Range.Text.replace("\r", " ").replace("\x07", " ").strip()
+                    longest_cell = max(longest_cell, len(cell_text))
+                longest_cells.append(longest_cell)
+
+            minimum_widths_cm = [1.0 if length <= 5 else 1.4 if length <= 12 else 1.8 if length <= 24 else 2.1
+                                 for length in longest_cells]
+            remaining_width_cm = largura_util / cm - sum(minimum_widths_cm)
+            column_weights = [max(1, min(length, 100)) ** 0.65 for length in longest_cells]
+            total_weight = sum(column_weights)
+            column_widths_cm = [minimum + remaining_width_cm * weight / total_weight
+                                for minimum, weight in zip(minimum_widths_cm, column_weights)]
+
+            tb.AllowAutoFit = False
+            altura_estimada_pt = 0
+            for column_index, width_cm in enumerate(column_widths_cm, start=1):
+                tb.Columns(column_index).Width = width_cm * cm
+
+            for row_index in range(1, tb.Rows.Count + 1):
+                linhas_estimadas = 1
+                for column_index, width_cm in enumerate(column_widths_cm, start=1):
+                    cell_text = tb.Cell(row_index, column_index).Range.Text.replace("\r", " ").replace("\x07", " ").strip()
+                    caracteres_por_linha = max(6, int(width_cm * 5.2))
+                    linhas_celula = max(1, (len(cell_text) + caracteres_por_linha - 1) // caracteres_por_linha)
+                    linhas_estimadas = max(linhas_estimadas, linhas_celula)
+                altura_estimada_pt += linhas_estimadas * 12 + 5
+                row = tb.Rows(row_index)
+                row.AllowBreakAcrossPages = False
+                row.Range.ParagraphFormat.KeepWithNext = altura_estimada_pt <= 620
+
             tb.Rows(1).Range.Font.Bold = True
             tb.Rows(1).Shading.BackgroundPatternColor = 0xE6E6E6
             tb.Rows(1).HeadingFormat = True
-            tb.AutoFitBehavior(1)
-            tb.AutoFitBehavior(2)
             anterior = tb.Range.Previous(4, 1)               # parágrafo antes da tabela fica com ela
             if anterior is not None:
                 anterior.ParagraphFormat.KeepWithNext = True
@@ -199,6 +268,13 @@ def formatar_no_word(capa=True):
         for i in range(1, doc.Paragraphs.Count + 1):
             p = doc.Paragraphs(i)
             texto = p.Range.Text.strip()
+            if texto in {
+                "Cinto (1 unidade)",
+                "Antena (por unidade; montar 3: Anchor 1, Anchor 2, Anchor 3)",
+                "Infraestrutura",
+            }:
+                p.Alignment = 1
+                p.Range.Font.Bold = True
             if re.match(r"Figura \d+ –", texto) or texto.startswith("Fonte:"):
                 p.Range.Font.Size = 10
                 p.Alignment, p.FirstLineIndent, p.LineSpacingRule = 1, 0, 0
