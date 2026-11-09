@@ -12,7 +12,7 @@ from features import NAMES, window_features, tamanhos
 
 class DetectorQuedaStream:
     """
-    Uso (no on_message da interface_mvp_2.py):
+    Uso (no on_message da interface.py):
         det = DetectorQuedaStream("modelo_mvp_8g.joblib")
         j = det.adicionar(id_cinto, id_antena, rssi, (ax, ay, az, gx, gy, gz), seq=None)
         if j and j["queda"]: ...alarme...

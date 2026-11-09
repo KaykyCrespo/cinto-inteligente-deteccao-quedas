@@ -1,6 +1,6 @@
 """Gera a matriz de confusão e o painel de métricas do modelo a partir de modelos/resultado_treino_mvp_8g.txt.
 
-Uso: python DOCUMENTACAO/esquemas/gerar_metricas.py
+Uso: python docs/esquemas/gerar_metricas.py
 """
 import os
 import re

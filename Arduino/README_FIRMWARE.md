@@ -8,9 +8,9 @@ Dois sketches Arduino (ESP32) formam a camada de hardware do MVP:
 | `anchor_mvp_v1/` | ESP32 | Modo híbrido: conecta por GATT ao cinto (uma antena por vez) e/ou escuta os anúncios (todas). Repassa tudo por **Wi‑Fi/MQTT** ao broker Mosquitto. |
 | `libraries/` | — | Bibliotecas usadas pelo firmware: NimBLE-Arduino 2.5.2 (cinto e antena) e PubSubClient 2.8 (antena). Copie para `Documentos\Arduino\libraries` ou instale as mesmas versões pelo Gerenciador de Bibliotecas da Arduino IDE. |
 
-O PC consome os tópicos MQTT com `app.py` (painel) ou `interface_mvp_2.py` (terminal), na raiz do repositório.
+O PC consome os tópicos MQTT com `app.py` (painel) ou `interface.py` (terminal), na raiz do repositório.
 O passo a passo completo de instalação (Arduino IDE, pacote ESP32, drivers USB e gravação) está no
-manual, em `DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf` (Seção 3.2).
+manual, em `docs/MANUAL/Manual_Usuario_Operacao.pdf` (Seção 3.2).
 
 ## Fluxo de dados
 
@@ -29,7 +29,7 @@ flowchart LR
         AA --> Q
         Q --> MQTT["MQTT oqpnb/anchor/<id>"]
     end
-    MQTT --> BRK["Mosquitto"] --> PC["app.py / interface_mvp_2.py"]
+    MQTT --> BRK["Mosquitto"] --> PC["app.py / interface.py"]
 ```
 
 ## Protocolo
@@ -53,7 +53,7 @@ Manufacturer Data com o texto `{OQPNB;<id_cinto>}`.
   - só anúncio: `{OQPNB;id_antena;rssi;id_cinto;;;;;;;;}` (campos de sensores vazios)
 - Tópico `oqpnb/anchor/<ID_ANTENA>/status`: `online` / `offline` (retido, com Last Will).
 
-`interface_mvp_2.parse_pacote_mvp()` aceita também a variante com `seq` após `id_cinto` (13 campos).
+`interface.parse_pacote_mvp()` aceita também a variante com `seq` após `id_cinto` (13 campos).
 
 ## Como a antena decide GATT × escuta
 - Toda antena começa escutando. Se vê o anúncio do cinto **conectável** (ninguém conectado), tenta conectar.

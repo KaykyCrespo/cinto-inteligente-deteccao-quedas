@@ -12,9 +12,9 @@ quadrante do ambiente, dispara alerta no Telegram e persiste tudo em SQLite.
 | `README.md` (este) | Visão geral, estrutura, instalação e execução |
 | [`Arduino/README_FIRMWARE.md`](Arduino/README_FIRMWARE.md) | Firmware do cinto e da antena: protocolo BLE/MQTT, configuração, Mosquitto |
 | [`dados/README_BANCO_DE_DADOS.md`](dados/README_BANCO_DE_DADOS.md) | Banco SQLite: DER, modelos lógico e físico, dicionário de dados |
-| [`DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf`](DOCUMENTACAO/MANUAL/Manual_Usuario_Operacao.pdf) | Guia do Usuário e Manual de Operação (fonte: `DOCUMENTACAO/MANUAL/MANUAL_USUARIO_OPERACAO.md`) |
-| [`DOCUMENTACAO/VIDEO TECNICO/Roteiro_Video.pdf`](DOCUMENTACAO/VIDEO%20TECNICO/Roteiro_Video.pdf) | Roteiro e materiais do vídeo técnico (fonte: `DOCUMENTACAO/VIDEO TECNICO/ROTEIRO_VIDEO.md`) |
-| [`DOCUMENTACAO/gerar_documentos.py`](DOCUMENTACAO/gerar_documentos.py) | Gera o manual ou o roteiro em DOCX e PDF |
+| [`docs/MANUAL/Manual_Usuario_Operacao.pdf`](docs/MANUAL/Manual_Usuario_Operacao.pdf) | Guia do Usuário e Manual de Operação (fonte: `docs/MANUAL/MANUAL_USUARIO_OPERACAO.md`) |
+| [`docs/VIDEO TECNICO/Roteiro_Video.pdf`](docs/VIDEO%20TECNICO/Roteiro_Video.pdf) | Roteiro e materiais do vídeo técnico (fonte: `docs/VIDEO TECNICO/ROTEIRO_VIDEO.md`) |
+| [`docs/gerar_documentos.py`](docs/gerar_documentos.py) | Gera o manual ou o roteiro em DOCX e PDF |
 | [`dados/SISFALL/README_ORIGEM_SISFALL.md`](dados/SISFALL/README_ORIGEM_SISFALL.md) | Nota original sobre a origem do dataset SisFall (terceiros) |
 | `dados/SISFALL/SisFall_dataset/Readme.txt` | Descrição oficial do SisFall (atividades, voluntários, sensores) |
 
@@ -27,7 +27,7 @@ TCC MVP/
 ├── banco.py               persistência SQLite (sessões, amostras, janelas, quedas, status)
 ├── detector_queda.py      janelas + Random Forest em tempo real
 ├── features.py            as 8 características (referência para treino e detecção)
-├── interface_mvp_2.py     parser do pacote MQTT e versão do monitor em terminal
+├── interface.py           parser do pacote MQTT e monitor de terminal
 ├── localizacao.py         RSSI -> distância -> quadrante (com confiança e retenção)
 ├── requirements.txt       dependências do sistema
 ├── requirements-docs.txt  dependências só para gerar documentos e diagramas
@@ -44,7 +44,7 @@ TCC MVP/
 │   ├── gravacoes/         CSV de amostras do botão "Gravar amostras" (ignorado pelo git)
 │   ├── ensaios_rssi/      CSVs e resultados dos ensaios de calibração de RSSI
 │   └── SISFALL/           dataset público usado no treino
-└── DOCUMENTACAO/
+└── docs/
     ├── MANUAL/            fonte e arquivos PDF/DOCX do manual
     ├── VIDEO TECNICO/     roteiro, gravações e arquivos PDF/DOCX
     ├── gerar_documentos.py gera o manual e o roteiro em DOCX/PDF
@@ -65,7 +65,7 @@ cd cinto-inteligente-deteccao-quedas
 
 pip install -r requirements.txt
 
-# só para regenerar diagramas e o manual em DOCUMENTACAO/ (exige Word instalado para o PDF)
+# só para regenerar diagramas e o manual em docs/ (exige Word instalado para o PDF)
 pip install -r requirements-docs.txt
 
 # painel (abre http://localhost:8501)
@@ -75,7 +75,7 @@ python -m streamlit run app.py
 $env:OQPNB_TG_TOKEN="token do BotFather"; $env:OQPNB_TG_CHAT="chat_id"
 
 # monitor em terminal
-python interface_mvp_2.py --modelo modelos/modelo_mvp_8g.joblib --quiet
+python interface.py --modelo modelos/modelo_mvp_8g.joblib --quiet
 
 # reproduzir um CSV gravado sem hardware
 python scripts/reproduzir_csv.py dados/gravacoes/amostras_X.csv --modelo modelos/modelo_mvp_8g.joblib

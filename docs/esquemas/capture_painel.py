@@ -5,9 +5,9 @@ import json
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(r"c:\Users\User\Documents\Repositório\cinto-inteligente-deteccao-quedas")
-OUT_DIR = ROOT / "DOCUMENTACAO" / "APOIO" / "IMAGENS" / "prints" / "originais"
+OUT_DIR = ROOT / "docs" / "IMAGENS" / "prints" / "originais"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-JSON_PATH = ROOT / "DOCUMENTACAO" / "esquemas" / "prints_anotacoes.json"
+JSON_PATH = ROOT / "docs" / "esquemas" / "prints_anotacoes.json"
 
 # Nome dos arquivos PNG esperados pelo manual.
 NOMES = [

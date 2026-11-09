@@ -5,9 +5,9 @@ from time import sleep
 from playwright.sync_api import sync_playwright
 
 BASE = Path(r"c:\Users\User\Documents\Repositório\cinto-inteligente-deteccao-quedas")
-OUT_ORIGINAIS = BASE / "DOCUMENTACAO" / "APOIO" / "IMAGENS" / "prints" / "originais"
+OUT_ORIGINAIS = BASE / "docs" / "IMAGENS" / "prints" / "originais"
 OUT_ORIGINAIS.mkdir(parents=True, exist_ok=True)
-JSON_PATH = BASE / "DOCUMENTACAO" / "esquemas" / "prints_anotacoes.json"
+JSON_PATH = BASE / "docs" / "esquemas" / "prints_anotacoes.json"
 
 
 def tag_bbox(page, text):

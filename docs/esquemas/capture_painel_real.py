@@ -4,7 +4,7 @@ from time import sleep
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(r"c:\Users\User\Documents\Repositório\cinto-inteligente-deteccao-quedas")
-OUT = ROOT / "DOCUMENTACAO" / "APOIO" / "IMAGENS" / "prints" / "originais"
+OUT = ROOT / "docs" / "IMAGENS" / "prints" / "originais"
 OUT.mkdir(parents=True, exist_ok=True)
 
 

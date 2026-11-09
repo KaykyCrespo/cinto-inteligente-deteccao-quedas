@@ -1,6 +1,6 @@
 """Gera o diagrama de arquitetura em camadas (PNG e SVG).
 
-Uso: python DOCUMENTACAO/esquemas/gerar_arquitetura.py
+Uso: python docs/esquemas/gerar_arquitetura.py
 """
 import os
 

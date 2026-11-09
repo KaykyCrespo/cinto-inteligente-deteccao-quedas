@@ -1,7 +1,7 @@
 """
 app.py - Painel web (Streamlit) do Cinto Inteligente (MVP).
 
-Mesma lógica da interface_mvp_2.py (pacote texto da antena + DetectorQuedaStream),
+Mesma lógica de interface.py (pacote texto da antena + DetectorQuedaStream),
 mas mostrando tudo num navegador em vez do terminal.
 
 Requisitos:
@@ -40,7 +40,7 @@ import pandas as pd
 import paho.mqtt.client as mqtt
 import streamlit as st
 
-from interface_mvp_2 import TOPIC_BASE, parse_pacote_mvp
+from interface import TOPIC_BASE, parse_pacote_mvp
 import alerta_telegram as tg
 import banco as bd
 import localizacao as loc

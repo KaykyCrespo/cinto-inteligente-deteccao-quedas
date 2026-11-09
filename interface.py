@@ -1,5 +1,5 @@
 """
-interface_mvp_2.py - Terminal de Monitoramento + DETECÇÃO DE QUEDA (MVP)
+interface.py - Terminal de Monitoramento + DETECÇÃO DE QUEDA (MVP)
 
 Assina os tópicos MQTT publicados pela antena (anchor_mvp_v1):
     oqpnb/anchor/<ID>          -> Pacote: {cod_amb;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos;ad8232}
@@ -9,16 +9,14 @@ Assina os tópicos MQTT publicados pela antena (anchor_mvp_v1):
 
 Possui duas formas de acionamento:
   1. Apenas visualizar os dados no terminal:
-       python interface_mvp_1.py --view
-       (ou executando `python interface_mvp_1.py` e escolhendo a opção [1])
+    python interface.py --view
 
   2. Visualizar os dados e salvar em um arquivo CSV com timestamp:
-       python interface_mvp_1.py --csv leituras_mvp.csv
-       (ou executando `python interface_mvp_1.py` e escolhendo a opção [2])
+    python interface.py --csv leituras_mvp.csv
 
   3. Detecção de queda em tempo real (Random Forest treinado no SisFall):
-       python interface_mvp_2.py --modelo modelos/modelo_mvp_8g.joblib --quiet
-       python interface_mvp_2.py --modelo modelos/modelo_mvp_8g.joblib --quiet --csv leituras.csv --csv-janelas janelas.csv
+    python interface.py --modelo modelos/modelo_mvp_8g.joblib --quiet
+    python interface.py --modelo modelos/modelo_mvp_8g.joblib --quiet --csv leituras.csv --csv-janelas janelas.csv
      O cinto_mvp_v1 configura o MPU em ±8 g / ±2000 °/s, as mesmas faixas do modelo_mvp_8g.joblib.
      --quiet esconde as 100 linhas/s de amostras e mostra só janelas e alarmes.
      detector_queda.py e features.py precisam estar na mesma pasta.

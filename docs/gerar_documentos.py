@@ -1,8 +1,8 @@
 """Gera o manual ou o roteiro de vídeo em DOCX e PDF a partir de Markdown.
 
 Requisitos: pip install pypandoc_binary python-docx pywin32 · Microsoft Word instalado (exportação do PDF).
-Uso: python DOCUMENTACAO/gerar_documentos.py
-    python DOCUMENTACAO/gerar_documentos.py --origem "VIDEO TECNICO/ROTEIRO_VIDEO.md" --saida "VIDEO TECNICO/Roteiro_Video" --simples
+Uso: python docs/gerar_documentos.py
+    python docs/gerar_documentos.py --origem "VIDEO TECNICO/ROTEIRO_VIDEO.md" --saida "VIDEO TECNICO/Roteiro_Video" --simples
 """
 import argparse
 import os
@@ -80,6 +80,8 @@ def preparar_markdown(capa=True):
                    + m.group(1), texto)
     texto = re.sub(r"\]\(([^)]*%20[^)]*)\)", lambda m: "](<" + m.group(1).replace("%20", " ") + ">)", texto)
     texto = re.sub(r"(?m)^(### 3\.2 )", lambda m: QUEBRA + m.group(1), texto)
+    if capa:
+        texto = re.sub(r"(?m)^(\*\*Figura 9 –)", lambda m: QUEBRA + m.group(1), texto)
     return texto
 
 
@@ -301,8 +303,8 @@ def formatar_no_word(capa=True):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--origem", default="MANUAL/MANUAL_USUARIO_OPERACAO.md", help="Markdown relativo a DOCUMENTACAO/")
-    ap.add_argument("--saida", default="MANUAL/Manual_Usuario_Operacao", help="caminho base do DOCX/PDF relativo a DOCUMENTACAO/")
+    ap.add_argument("--origem", default="MANUAL/MANUAL_USUARIO_OPERACAO.md", help="Markdown relativo a docs/")
+    ap.add_argument("--saida", default="MANUAL/Manual_Usuario_Operacao", help="caminho base do DOCX/PDF relativo a docs/")
     ap.add_argument("--simples", action="store_true", help="sem capa e sem sumário")
     a = ap.parse_args()
     ORIGEM = os.path.join(PASTA_DOCUMENTACAO, a.origem)

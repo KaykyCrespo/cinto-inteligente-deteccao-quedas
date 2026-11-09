@@ -1,6 +1,6 @@
 """Gera o diagrama do pipeline de IA (treino offline e inferência em tempo real) em PNG e SVG.
 
-Uso: python DOCUMENTACAO/esquemas/gerar_pipeline.py
+Uso: python docs/esquemas/gerar_pipeline.py
 """
 import os
 

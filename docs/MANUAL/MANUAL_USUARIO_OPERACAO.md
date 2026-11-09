@@ -766,7 +766,7 @@ Ferramentas auxiliares (opcionais):
 
 ```powershell
 # monitor em terminal
-python interface_mvp_2.py --modelo modelos/modelo_mvp_8g.joblib --quiet
+python interface.py --modelo modelos/modelo_mvp_8g.joblib --quiet
 
 # reprocessar uma gravação sem hardware
 python scripts/reproduzir_csv.py dados/gravacoes/<arquivo>.csv --modelo modelos/modelo_mvp_8g.joblib
@@ -977,10 +977,12 @@ Fonte: Elaborado pelos autores (2026).
 | Limiar de alarme | Sensibilidade do detector. Menor = detecta mais e gera mais falsos alarmes; maior = o oposto (Seção 4.4) |
 | Tempo para resetar alerta | Por quanto tempo o aviso de queda fica na tela (1–5 min) |
 | Atualizar automaticamente / Intervalo | Atualização da tela (0,5–5 s) |
-| Gravar amostras | Grava os dados brutos em CSV e no banco (arquivos divididos a cada 60 min) |
+| Gravar amostras | Enquanto ativo, grava as amostras brutas (sensores e RSSI) em CSV e na tabela `amostra` do SQLite; os CSV são divididos em partes de 60 min |
 | Reconectar | Refaz a conexão MQTT sem fechar o painel |
 
 Fonte: Elaborado pelos autores (2026).
+
+O botão controla somente a gravação das amostras brutas. Sessões, janelas analisadas, possíveis quedas e status das antenas são registrados automaticamente no SQLite, mesmo quando a gravação está desligada.
 
 
 **Aba Monitoramento:**
@@ -1002,7 +1004,7 @@ Fonte: elaborado pelos autores (2026).
 4. **Tempo para resetar o alerta:** controla por quanto tempo o aviso permanece na interface.
 5. **Atualizar automaticamente:** liga ou desliga a atualização periódica do painel.
 6. **Intervalo (s):** define o período entre as atualizações automáticas da tela.
-7. **Gravar amostras:** inicia a gravação dos dados brutos em CSV e no banco de dados.
+7. **Gravar amostras:** inicia ou encerra a gravação das amostras brutas em CSV e na tabela `amostra` do SQLite.
 8. **Reconectar:** refaz a conexão MQTT sem fechar o painel.
 
 **Figura 8 – Aba Monitoramento em operação**
@@ -1012,19 +1014,19 @@ Fonte: elaborado pelos autores (2026).
 Fonte: elaborado pelos autores (2026).
 
 1. **Identificação do cinto:** mostra o equipamento selecionado no painel.
-2. **Status do cinto:** indica que o cinto está em condição normal neste instante.
+2. **Status do cinto:** mostra **STATUS NORMAL** enquanto a probabilidade está abaixo do limiar. Quando o detector ultrapassa o limiar, o cartão muda para o alerta visual vermelho **POSSÍVEL QUEDA** e apresenta os dados do evento.
 3. **Broker:** informa o estado da conexão MQTT com o computador central.
 4. **Amostras recebidas:** apresenta o total de amostras recebidas pelo painel.
 5. **Cintos ativos:** mostra quantos cintos estão enviando dados.
 6. **Antenas online:** indica quantas antenas estão conectadas ao sistema.
-7. **Quadrante:** exibe a região estimada; o traço indica que não havia quadrante disponível nesta captura.
+7. **Quadrante:** indica a região estimada do ambiente: **SE** (superior esquerdo), **SD** (superior direito), **IE** (inferior esquerdo) ou **ID** (inferior direito). O traço nesta captura indica que a localização não estava disponível naquele instante.
 8. **Taxa:** mostra a frequência atual de recebimento das amostras, em hertz.
-9. **Status do eletrodo:** indica a condição dos eletrodos; nesta captura, aparecem soltos.
+9. **Status do eletrodo:** informa se os eletrodos estão **CONECTADOS** ou **SOLTOS**; nesta captura, aparecem soltos.
 10. **Status Telegram:** informa se o bot está ativo para envio de notificações.
 11. **Probabilidade de queda:** mostra a probabilidade atual e a barra visual correspondente.
 12. **Diagnóstico da janela:** informa quantas vezes a janela foi reiniciada por lacunas e há quanto tempo chegou a última leitura.
 13. **Gráfico de probabilidade:** acompanha as últimas janelas analisadas.
-14. **Limiar de alerta:** linha tracejada vermelha, configurada em 50% nesta captura.
+14. **Limiar de alerta:** linha tracejada vermelha que marca o valor mínimo de probabilidade para gerar alerta. O controle **Limiar de alarme** na barra lateral ajusta esse valor; nesta captura, está em 50%.
 15. **Quedas detectadas:** lista os eventos registrados e seus dados, como data, hora, cinto, antena, probabilidade e quadrante.
 
 **Figura 9 – Status do sistema, cinto e antenas**
@@ -1038,7 +1040,7 @@ Fonte: elaborado pelos autores (2026).
 3. **Pacotes inválidos:** conta pacotes que não puderam ser interpretados.
 4. **Modelo:** mostra o arquivo do modelo carregado e o limiar de detecção em uso.
 5. **Telegram:** indica se o bot está ativo e mostra o resultado do último envio.
-6. **Quadrante:** exibe a região estimada do ambiente; o traço indica que não havia quadrante disponível nessa captura.
+6. **Quadrante:** pode indicar **SE** (superior esquerdo), **SD** (superior direito), **IE** (inferior esquerdo) ou **ID** (inferior direito), conforme a posição estimada no cômodo. O traço nesta captura significa que não havia uma estimativa disponível naquele instante.
 7. **Taxa:** mostra a frequência atual de recebimento das amostras, em hertz.
 8. **Amostras perdidas:** indica a porcentagem de amostras não recebidas.
 9. **Janelas reiniciadas:** conta reinicializações de janelas após interrupções no fluxo de dados.
@@ -1048,7 +1050,7 @@ Fonte: elaborado pelos autores (2026).
 13. **Status do eletrodo:** indica se os eletrodos estão conectados ou soltos.
 14. **Última leitura:** mostra há quanto tempo o cinto enviou dados pela última vez.
 15. **Estado ONLINE:** o indicador verde informa que a Anchor 1 está conectada.
-16. **Modo:** mostra como a antena está recebendo os dados do cinto; nesta captura, por GATT.
+16. **Modo:** mostra como a antena recebe os dados. **GATT** usa uma conexão BLE para receber os dados completos dos sensores; **Advertising** recebe anúncios BLE sem conexão e permite medir o RSSI. Nesta captura, a Anchor 1 está em GATT.
 17. **RSSI (dBm):** indica a intensidade recebida do sinal Bluetooth; valores menos negativos representam sinal mais forte.
 18. **Idade do RSSI:** o selo cinza mostra há quantos segundos o valor do sinal foi atualizado.
 
@@ -1087,10 +1089,10 @@ Fonte: elaborado pelos autores (2026).
 
 Fonte: elaborado pelos autores (2026).
 
-1. **Raio estimado:** explica o símbolo da antena mais próxima e o das demais antenas no mapa.
+1. **Raio estimado:** cada círculo representa a distância estimada entre uma antena e o cinto, calculada a partir do RSSI. O círculo contínuo indica a antena mais próxima e os tracejados representam as demais. A estimativa é aproximada, pois o corpo e o ambiente alteram o sinal; por isso, interprete a posição como um quadrante, não como um ponto exato. As cores do marcador indicam: **azul = posição confirmada; laranja = baixa confiança; cinza = estimativa bruta**.
 2. **Janelas analisadas:** baixa em CSV as janelas processadas na sessão.
 3. **Quedas detectadas:** baixa em CSV os eventos de possível queda registrados.
-4. **Amostras:** informa que é preciso iniciar a gravação pela barra lateral para disponibilizar os dados brutos.
+4. **Amostras:** antes de gravar, o botão orienta a iniciar **Gravar amostras** na barra lateral. Depois de gravar e parar, ele disponibiliza o CSV daquele período para download, dividido em partes de até 60 minutos. Esses arquivos podem ser usados em testes e reprocessamentos.
 5. **Amostras no banco:** baixa em CSV as amostras gravadas no banco de dados.
 6. **Status das antenas:** baixa em CSV o histórico de estado das antenas.
 7. **Banco SQLite:** baixa o arquivo completo `.db` para consulta ou manutenção.
@@ -1103,18 +1105,9 @@ Fonte: elaborado pelos autores (2026).
 
 1. **Mensagem de alerta:** apresenta o cinto, horário, antena mais próxima, quadrante, confiança e os dados de aceleração e inclinação associados ao evento.
 
-**Aba Detalhes:**
+### O que fazer ao receber um alerta
 
-- **Status do Sistema:** modelo carregado, limiar, pacotes inválidos, amostras perdidas, janelas reiniciadas, total de quedas e cartões das antenas (GATT ou Advertising, RSSI, antena mais próxima).
-- **Tabela RSSI** e **Histórico de Quedas**.
-- **Gráficos de Sinais:** aceleração e giroscópio em tempo real.
-- **Mapa:** um círculo por antena com o raio estimado (sólido para a mais próxima, tracejado para as outras) e a posição do cinto. Azul = posição confirmada; laranja = baixa confiança; cinza = estimativa bruta.
-- **ECG:** traçado do sinal do AD8232.
-- **Exportação:** CSV por sessão e o arquivo `.db`.
-
-**Como interpretar a localização:** o resultado deve ser lido como **região (quadrante)** do ambiente, não como ponto exato. O corpo de quem usa o cinto atenua o sinal (~22 dB para a antena às costas e ~12 dB lateralmente, medidos a 1 m), o que distorce as distâncias.
-
-**Ao receber um alerta:** confira o cartão do cinto e o quadrante indicado e entre em contato com a pessoa ou vá até o local. O sistema é de **apoio** e não substitui o acompanhamento presencial.
+Confira o cartão do cinto e o quadrante indicado e entre em contato com a pessoa ou vá até o local. O sistema é de **apoio** e não substitui o acompanhamento presencial.
 
 ### 5.3 Resolução de problemas
 

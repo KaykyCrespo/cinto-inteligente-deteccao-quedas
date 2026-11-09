@@ -5,9 +5,9 @@ from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import sync_playwright
 
 BASE = Path(r"c:\Users\User\Documents\Repositório\cinto-inteligente-deteccao-quedas")
-ORIGINAIS = BASE / "DOCUMENTACAO" / "APOIO" / "IMAGENS" / "prints" / "originais"
-DESTINO = BASE / "DOCUMENTACAO" / "APOIO" / "IMAGENS" / "prints"
-JSON_PATH = BASE / "DOCUMENTACAO" / "esquemas" / "prints_anotacoes.json"
+ORIGINAIS = BASE / "docs" / "IMAGENS" / "prints" / "originais"
+DESTINO = BASE / "docs" / "IMAGENS" / "prints"
+JSON_PATH = BASE / "docs" / "esquemas" / "prints_anotacoes.json"
 RED = (198, 40, 40)
 
 

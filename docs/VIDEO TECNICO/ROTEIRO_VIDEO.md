@@ -58,8 +58,8 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 
 **Na tela:**
 
-- `DOCUMENTACAO/esquemas/arquitetura_camadas.png`, em tela cheia. Use zoom ou um destaque em cada camada enquanto ela é citada.
-- No fim, por 5 segundos, o fluxograma `DOCUMENTACAO/IMAGENS/FLUXOGRAMA.jpeg`.
+- `docs/esquemas/arquitetura_camadas.png`, em tela cheia. Use zoom ou um destaque em cada camada enquanto ela é citada.
+- No fim, por 5 segundos, o fluxograma `docs/IMAGENS/FLUXOGRAMA.jpeg`.
 
 ---
 
@@ -107,7 +107,7 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 
 **Na tela:**
 
-- **Abertura do bloco:** `DOCUMENTACAO/esquemas/pipeline_ia.png` em tela cheia. Destaque cada caixa da faixa "Treino" enquanto ela é citada.
+- **Abertura do bloco:** `docs/esquemas/pipeline_ia.png` em tela cheia. Destaque cada caixa da faixa "Treino" enquanto ela é citada.
 - Slide com os números do SisFall e um gráfico de sinal de uma queda: um pico de aceleração seguido de repouso. Dá para capturar da aba Detalhes, em "Gráficos de Sinais", durante um teste.
 - Em `features.py`, a lista `FEATURES` com os 8 atributos (linhas 32–41).
 - Em `scripts/treino_sisfall.py`, a função `load_trial()`, com a reamostragem e a saturação.
@@ -135,8 +135,8 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 **Na tela:**
 
 1. Em `scripts/treino_sisfall.py`, a função `make_model()` (linhas 98–100) e o laço `GroupKFold` (linha 136).
-2. A **matriz de confusão**: `DOCUMENTACAO/esquemas/matriz_confusao.png`.
-3. O painel de métricas, com limiar e importância dos atributos: `DOCUMENTACAO/esquemas/metricas_modelo.png`. Mostre em seguida `modelos/resultado_treino_mvp_8g.txt` por alguns segundos, para provar a origem dos números.
+2. A **matriz de confusão**: `docs/esquemas/matriz_confusao.png`.
+3. O painel de métricas, com limiar e importância dos atributos: `docs/esquemas/metricas_modelo.png`. Mostre em seguida `modelos/resultado_treino_mvp_8g.txt` por alguns segundos, para provar a origem dos números.
 4. Em `detector_queda.py`, o método `adicionar()` da classe de tempo real (linha 155). Volte por 3 segundos ao `pipeline_ia.png`, destacando a faixa "Operação em tempo real".
 5. **Obrigatório (prova de inferência em dados do sensor):** no terminal, rode `python scripts/reproduzir_csv.py dados/gravacoes/<arquivo>.csv --modelo modelos/modelo_mvp_8g.joblib`. Use uma gravação feita antes com "Gravar amostras" ligado e uma queda simulada no colchão. O script mostra o total de janelas analisadas e, para cada queda detectada, o horário, a probabilidade, a aceleração máxima, a inclinação e a rotação máxima.
 
@@ -240,7 +240,7 @@ Na frase final, a equipe aparece junta na câmera, com o cinto e uma antena na m
 
 ## Imagens de apoio para os slides
 
-Ficam em `DOCUMENTACAO/esquemas/` (PNG para slides e SVG para ampliar sem perder qualidade), exceto o fluxograma, que fica em `DOCUMENTACAO/IMAGENS/`:
+Ficam em `docs/esquemas/` (PNG para slides e SVG para ampliar sem perder qualidade), exceto o fluxograma, que fica em `docs/IMAGENS/`:
 
 | Bloco | Arquivo | Conteúdo |
 |---|---|---|
