@@ -41,7 +41,7 @@ O sistema é uma **infraestrutura de sensoriamento** para esses espaços, com as
 
 ![Arquitetura em camadas](esquemas/arquitetura_camadas.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 | Camada | Componentes | Protocolos |
 |---|---|---|
@@ -62,7 +62,7 @@ A Figura 2 mostra o caminho de um ciclo de leitura, do sensor no cinto até o al
 
 ![Fluxograma do sistema](IMAGENS/FLUXOGRAMA.jpeg)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 ---
 
@@ -173,17 +173,47 @@ Fonte: Elaborado pelos autores (2026).
 
 ### 2.3 Diagrama esquemático e montagem
 
-<!-- PENDENTE: inserir aqui os novos esquemas elétricos do cinto e da antena (exigência do curso). -->
+Os esquemas elétricos mostram as conexões de alimentação e de sinal dos dois dispositivos. Em ambos, a bateria recarregável é ligada ao módulo TP4056, responsável pela carga, e ao conversor MT3608, que fornece 5 V ao circuito; a chave gangorra permite ligar e desligar o conjunto. No cinto, o ESP32-C3 recebe os dados de movimento do MPU6050 pela comunicação I²C e o sinal cardíaco do AD8232, que também indica quando os eletrodos estão soltos. Na antena, o ESP32 DevKit V1 funciona como unidade de comunicação e não possui sensores conectados. Consulte as tabelas de ligações desta seção para conferir os pinos e sinais.
 
 **Figura 3 – Disposição dos módulos no case do cinto**
 
 ![Case do cinto](IMAGENS/CASE%20CINTO.png)
+
+Fonte das figuras: elaborado pelos autores (2026).
 
 **Figura 4 – Disposição dos módulos no case da antena**
 
 ![Case da antena](IMAGENS/CASE%20ANTENA.png)
 
 Fonte das figuras: elaborado pelos autores (2026).
+
+**Figura 5 – Esquema elétrico do cinto**
+
+![Esquema elétrico do cinto com ESP32-C3, MPU6050, AD8232 e circuito de alimentação](../esquemas/esquemas%20eletricos/Esquema%20El%C3%A9trico%20Cinto.jpeg)
+
+Fonte das figuras: elaborado pelos autores (2026).
+
+**Figura 6 – Esquema elétrico da antena**
+
+![Esquema elétrico da antena com ESP32 DevKit V1 e circuito de alimentação](../esquemas/esquemas%20eletricos/Esquema%20El%C3%A9trico%20Antena.jpeg)
+
+Fonte das figuras: elaborado pelos autores (2026).
+
+**Figura 7 – Registro da montagem do circuito**
+
+![Montagem dos componentes e conexões do circuito](../esquemas/esquemas%20eletricos/Foto%20Montando.jpeg)
+
+Fonte das figuras: elaborado pelos autores (2026).
+
+**Figura 8 – Verificação das tensões com multímetro**
+
+![Uso do multímetro para verificar as tensões do circuito](../esquemas/esquemas%20eletricos/Foto%20Mult%C3%ADmetro.jpeg)
+
+Fonte das figuras: elaborado pelos autores (2026).
+
+A Figura 8 registra o uso do multímetro durante a verificação elétrica. Compare as leituras com as tensões nominais da Seção 2.4, incluindo 5,0 V na saída do MT3608 e 3,3 V no trilho que alimenta os sensores. O visor não está legível na foto; portanto, ela documenta o procedimento de medição, mas não permite confirmar numericamente os valores obtidos.
+
+Os arquivos editáveis dos esquemas (`cinto.fzz` e `antena.fzz`) e o instalador do Fritzing para Windows (`Instalador - fritzing - win64.msi`) estão na pasta `docs/esquemas/esquemas eletricos`. Abra os arquivos `.fzz` no Fritzing para consultar ou editar os diagramas.
 
 **Componentes passivos:**
 
@@ -992,11 +1022,11 @@ O botão controla somente a gravação das amostras brutas. Sessões, janelas an
 - **Probabilidade de queda:** gráfico das 8 últimas janelas (0–100%). Picos que cruzam o limiar geram alarme.
 - **Quedas Detectadas:** tabela com cada evento e o status de envio ao Telegram.
 
-**Figura 7 – Barra lateral do painel**
+**Figura 9 – Barra lateral do painel**
 
 ![Barra lateral com controles do sistema](IMAGENS/prints/barra_lateral_numerada.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Enviar alerta de quedas:** liga ou desliga o envio de notificações ao Telegram.
 2. **Testar envio:** envia uma mensagem de teste para verificar a configuração do Telegram.
@@ -1007,11 +1037,11 @@ Fonte: elaborado pelos autores (2026).
 7. **Gravar amostras:** inicia ou encerra a gravação das amostras brutas em CSV e na tabela `amostra` do SQLite.
 8. **Reconectar:** refaz a conexão MQTT sem fechar o painel.
 
-**Figura 8 – Aba Monitoramento em operação**
+**Figura 10 – Aba Monitoramento em operação**
 
 ![Cartão do cinto, métricas, probabilidade de queda e tabela de eventos com marcadores numerados](IMAGENS/prints/monitoramento_numerada.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Identificação do cinto:** mostra o equipamento selecionado no painel.
 2. **Status do cinto:** mostra **STATUS NORMAL** enquanto a probabilidade está abaixo do limiar. Quando o detector ultrapassa o limiar, o cartão muda para o alerta visual vermelho **POSSÍVEL QUEDA** e apresenta os dados do evento.
@@ -1029,11 +1059,11 @@ Fonte: elaborado pelos autores (2026).
 14. **Limiar de alerta:** linha tracejada vermelha que marca o valor mínimo de probabilidade para gerar alerta. O controle **Limiar de alarme** na barra lateral ajusta esse valor; nesta captura, está em 50%.
 15. **Quedas detectadas:** lista os eventos registrados e seus dados, como data, hora, cinto, antena, probabilidade e quadrante.
 
-**Figura 9 – Status do sistema, cinto e antenas**
+**Figura 11 – Status do sistema, cinto e antenas**
 
 ![Indicadores do sistema e cartões do cinto e antenas com marcadores numerados](IMAGENS/prints/detalhes_status_numerada.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Broker:** indica o estado da conexão MQTT com o computador central.
 2. **Amostras recebidas:** mostra o total de amostras recebidas pelo painel.
@@ -1056,38 +1086,38 @@ Fonte: elaborado pelos autores (2026).
 
 As outras antenas exibem os mesmos campos e não foram numeradas individualmente.
 
-**Figura 10 – Tabelas RSSI e Histórico de Quedas**
+**Figura 12 – Tabelas RSSI e Histórico de Quedas**
 
 ![Captura do painel com somente a Tabela RSSI e o Histórico de Quedas numerados](IMAGENS/prints/tabela%20RSSI%20e%20historico%20de%20quedas_numerada.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Tabela RSSI por Cinto × Antena:** apresenta, para cada antena, o RSSI atual e médio, a origem do dado (GATT ou Advertising), a quantidade de amostras e a janela de conexão.
 2. **Histórico de Quedas:** lista os eventos registrados com data, hora, cinto, antena, probabilidade, aceleração máxima, giroscópio, inclinação e quadrante.
 
-**Figura 11 – Gráficos do acelerômetro e do giroscópio**
+**Figura 13 – Gráficos do acelerômetro e do giroscópio**
 
 ![Gráficos de acelerômetro e giroscópio com marcadores numerados](IMAGENS/prints/graficos_sinais_numerados.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Acelerômetro:** mostra a magnitude da aceleração do cinto, em g, nos últimos cinco segundos.
 2. **Giroscópio:** mostra a magnitude da velocidade angular, em graus por segundo, nos últimos cinco segundos.
 
-**Figura 12 – Configuração do ambiente e sinal de ECG**
+**Figura 14 – Configuração do ambiente e sinal de ECG**
 
 ![Configuração do ambiente e gráfico de ECG com marcadores numerados](IMAGENS/prints/config_localizacao_ECG_numerada.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Ambiente e posição das antenas:** define as dimensões do cômodo e as coordenadas X/Y das três antenas, em metros.
 2. **ECG bruto:** mostra os últimos cinco segundos do sinal captado pelo módulo AD8232.
 
-**Figura 13 – Mapa indoor e exportação de dados**
+**Figura 15 – Mapa indoor e exportação de dados**
 
 ![Mapa indoor, legenda de raio estimado e seis botões de exportação numerados](IMAGENS/prints/mapa_exportacao_dados_numerada.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Raio estimado:** cada círculo representa a distância estimada entre uma antena e o cinto, calculada a partir do RSSI. O círculo contínuo indica a antena mais próxima e os tracejados representam as demais. A estimativa é aproximada, pois o corpo e o ambiente alteram o sinal; por isso, interprete a posição como um quadrante, não como um ponto exato. As cores do marcador indicam: **azul = posição confirmada; laranja = baixa confiança; cinza = estimativa bruta**.
 2. **Janelas analisadas:** baixa em CSV as janelas processadas na sessão.
@@ -1097,11 +1127,11 @@ Fonte: elaborado pelos autores (2026).
 6. **Status das antenas:** baixa em CSV o histórico de estado das antenas.
 7. **Banco SQLite:** baixa o arquivo completo `.db` para consulta ou manutenção.
 
-**Figura 14 – Alerta de possível queda no Telegram**
+**Figura 16 – Alerta de possível queda no Telegram**
 
 ![Mensagem de alerta de possível queda recebida no Telegram, com o corpo da mensagem numerado](IMAGENS/prints/telegram_alerta_queda_numerada.png)
 
-Fonte: elaborado pelos autores (2026).
+Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Mensagem de alerta:** apresenta o cinto, horário, antena mais próxima, quadrante, confiança e os dados de aceleração e inclinação associados ao evento.
 

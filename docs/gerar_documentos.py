@@ -80,8 +80,9 @@ def preparar_markdown(capa=True):
                    + m.group(1), texto)
     texto = re.sub(r"\]\(([^)]*%20[^)]*)\)", lambda m: "](<" + m.group(1).replace("%20", " ") + ">)", texto)
     texto = re.sub(r"(?m)^(### 3\.2 )", lambda m: QUEBRA + m.group(1), texto)
+    texto = re.sub(r"(?m)^(### 2\.3 )", lambda m: QUEBRA + m.group(1), texto)
     if capa:
-        texto = re.sub(r"(?m)^(\*\*Figura 9 –)", lambda m: QUEBRA + m.group(1), texto)
+        texto = re.sub(r"(?m)^(\*\*Figura 11 –)", lambda m: QUEBRA + m.group(1), texto)
     return texto
 
 
@@ -89,7 +90,9 @@ def converter_docx(texto, sumario=True):
     extras = ["--toc", "--toc-depth=2", "-M", "toc-title=Sumário"] if sumario else []
     pypandoc.convert_text(
         texto, "docx", format="markdown-implicit_figures", outputfile=DOCX,
-        extra_args=extras + ["--shift-heading-level-by=-1", f"--resource-path={PASTA_DOCUMENTACAO}", "-M", "lang=pt-BR"])
+        extra_args=extras + ["--shift-heading-level-by=-1",
+                             f"--resource-path={os.pathsep.join((PASTA_DOCUMENTACAO, os.path.join(PASTA_DOCUMENTACAO, 'MANUAL')))}",
+                             "-M", "lang=pt-BR"])
 
 
 def inserir_capa():
