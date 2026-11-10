@@ -457,7 +457,7 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 
 ### 2.5 Ordem de montagem
 
-**Arquivos de impressão 3D:** os moldes dos cases ficam no repositório do projeto (Seção 3.1), na pasta `impressao_3d/`, separados em `impressao_3d/cinto/` (base e tampa do case do cinto) e `impressao_3d/antena/` (base e tampa perfurada do case da antena). Basta abrir os arquivos no fatiador da impressora (por exemplo, Cura, PrusaSlicer ou Bambu Studio) e imprimir.
+**Arquivos de impressão 3D:** os projetos estão na pasta `impressao_3d/` da raiz do repositório GitHub: `Case Cinto.3mf` para o cinto e `Case Antena.3mf` para a antena. Abra o arquivo correspondente em um fatiador compatível com 3MF (por exemplo, Cura, PrusaSlicer ou Bambu Studio), confira a orientação e as configurações de impressão e envie à impressora. Para obtê-los, abra `impressao_3d/` no GitHub e baixe cada arquivo, ou baixe o repositório completo pelo botão **Code → Download ZIP** e localize a pasta após descompactar.
 
 **Ferramentas:** ferro de solda e estanho, multímetro, alicate de corte e desencapador, tubos termorretráteis, fita dupla-face e cola quente, chave de fenda pequena (para o trimpot do MT3608 e os parafusos M3).
 
@@ -520,7 +520,7 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 
 ### 3.1 Requisitos mínimos
 
-**Obtenção do projeto:** todo o material do sistema está em um único repositório no GitHub, <https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas>: código do painel e do backend, firmware do cinto e das antenas, bibliotecas Arduino usadas, modelo de IA treinado, moldes de impressão 3D dos cases (`impressao_3d/`), documentação e o arquivo `requirements.txt` com as dependências Python. Para baixar, use o botão **Code → Download ZIP** na página do repositório e descompacte, ou, com o Git instalado:
+**Obtenção do projeto:** todo o material do sistema está em um único repositório no GitHub, <https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas>: código do painel e do backend, firmware do cinto e das antenas, bibliotecas Arduino usadas, modelo de IA treinado, projetos imprimíveis dos cases (`impressao_3d/Case Cinto.3mf` e `impressao_3d/Case Antena.3mf`), documentação e o arquivo `requirements.txt` com as dependências Python. No GitHub, abra a pasta `impressao_3d/` na raiz do repositório para baixar os arquivos `.3mf` individualmente. Como alternativa, use o botão **Code → Download ZIP** e localize a pasta após descompactar, ou clone o repositório com Git:
 
 ```powershell
 git clone https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas.git
