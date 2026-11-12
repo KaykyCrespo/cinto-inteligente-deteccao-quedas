@@ -12,7 +12,9 @@ quadrante do ambiente, dispara alerta no Telegram e persiste tudo em SQLite.
 | `README.md` (este) | Visão geral, estrutura, instalação e execução |
 | [`Arduino/README_FIRMWARE.md`](Arduino/README_FIRMWARE.md) | Firmware do cinto e da antena: protocolo BLE/MQTT, configuração, Mosquitto |
 | [`dados/README_BANCO_DE_DADOS.md`](dados/README_BANCO_DE_DADOS.md) | Banco SQLite: DER, modelos lógico e físico, dicionário de dados |
-| [`docs/MANUAL/Manual_Usuario_Operacao.pdf`](docs/MANUAL/Manual_Usuario_Operacao.pdf) | Guia do Usuário e Manual de Operação (fonte: `docs/MANUAL/MANUAL_USUARIO_OPERACAO.md`) |
+| [`docs/MANUAL/Manual_Usuario_Operacao_Revisado.pdf`](docs/MANUAL/Manual_Usuario_Operacao_Revisado.pdf) | Guia do Usuário e Manual de Operação revisado (fonte: `docs/MANUAL/MANUAL_USUARIO_OPERACAO.md`) |
+| [`docs/impressao_3d`](docs/impressao_3d/) | Projetos `Case Cinto.3mf` e `Case Antena.3mf` para impressão dos cases |
+| [`dados/testes`](dados/testes/) | Registros e vídeos de testes; limites de comprovação e rastreabilidade na Seção 5.6 do manual |
 | [`docs/VIDEO TECNICO/Roteiro_Video.pdf`](docs/VIDEO%20TECNICO/Roteiro_Video.pdf) | Roteiro e materiais do vídeo técnico (fonte: `docs/VIDEO TECNICO/ROTEIRO_VIDEO.md`) |
 | [`docs/gerar_documentos.py`](docs/gerar_documentos.py) | Gera o manual ou o roteiro em DOCX e PDF |
 | [`dados/SISFALL/README_ORIGEM_SISFALL.md`](dados/SISFALL/README_ORIGEM_SISFALL.md) | Nota original sobre a origem do dataset SisFall (terceiros) |
@@ -33,7 +35,6 @@ TCC MVP/
 ├── requirements-docs.txt  dependências só para gerar documentos e diagramas
 ├── Arduino/               firmware do cinto (cinto_mvp_v1), da antena (anchor_mvp_v1) e bibliotecas usadas
 ├── assets/                logo.svg do painel
-├── impressao_3d/          arquivos de impressão 3D dos cases (cinto/ e antena/)
 ├── modelos/               modelo_mvp_8g.joblib e o relatório do treino
 ├── scripts/               treino_sisfall.py, reproduzir_csv.py
 ├── tests/                 testes automatizados (localização, controle do Telegram)
@@ -42,10 +43,12 @@ TCC MVP/
 │   ├── README_BANCO_DE_DADOS.md  DER, modelos e dicionário de dados
 │   ├── ambiente.json      tamanho do ambiente e posição das antenas (salvo pelo painel)
 │   ├── gravacoes/         CSV de amostras do botão "Gravar amostras" (ignorado pelo git)
+│   ├── testes/            registros e vídeos de execução dos testes
 │   ├── ensaios_rssi/      CSVs e resultados dos ensaios de calibração de RSSI
 │   └── SISFALL/           dataset público usado no treino
 └── docs/
     ├── MANUAL/            fonte e arquivos PDF/DOCX do manual
+    ├── impressao_3d/      projetos Case Cinto.3mf e Case Antena.3mf
     ├── VIDEO TECNICO/     roteiro, gravações e arquivos PDF/DOCX
     ├── gerar_documentos.py gera o manual e o roteiro em DOCX/PDF
     ├── Power Point - Apresentação.pptx

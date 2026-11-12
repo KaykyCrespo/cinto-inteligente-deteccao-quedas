@@ -73,7 +73,8 @@ def preparar_markdown(capa=True):
     if capa:
         texto = adicionar_fontes_tabelas(texto)
         texto = re.sub(r"\A# .*\n", "", texto)                # o título vai para a capa
-        texto = re.sub(r"\*\*(.+?)\*\*", r"\1", texto)        # ABNT: sem negrito no corpo do texto
+        corpo, separador, referencias = texto.partition("## Referências")
+        texto = re.sub(r"\*\*(.+?)\*\*", r"\1", corpo) + separador + referencias
     texto = re.sub(r"(?m)^---\s*$\n", "", texto)
     secoes = iter(range(1000))
     texto = re.sub(r"(?m)^(## Seção )", lambda m: (QUEBRA_SECAO if capa and next(secoes) == 0 else QUEBRA)
@@ -81,13 +82,14 @@ def preparar_markdown(capa=True):
     texto = re.sub(r"\]\(([^)]*%20[^)]*)\)", lambda m: "](<" + m.group(1).replace("%20", " ") + ">)", texto)
     texto = re.sub(r"(?m)^(### 3\.2 )", lambda m: QUEBRA + m.group(1), texto)
     texto = re.sub(r"(?m)^(### 2\.3 )", lambda m: QUEBRA + m.group(1), texto)
+    texto = re.sub(r"(?m)^(## Referências)", lambda m: QUEBRA + m.group(1), texto)
     if capa:
         texto = re.sub(r"(?m)^(\*\*Figura 11 –)", lambda m: QUEBRA + m.group(1), texto)
     return texto
 
 
 def converter_docx(texto, sumario=True):
-    extras = ["--toc", "--toc-depth=2", "-M", "toc-title=Sumário"] if sumario else []
+    extras = ["--toc", "--toc-depth=3", "-M", "toc-title=Sumário"] if sumario else []
     pypandoc.convert_text(
         texto, "docx", format="markdown-implicit_figures", outputfile=DOCX,
         extra_args=extras + ["--shift-heading-level-by=-1",
@@ -256,6 +258,11 @@ def formatar_no_word(capa=True):
             anterior = tb.Range.Previous(4, 1)               # parágrafo antes da tabela fica com ela
             if anterior is not None:
                 anterior.ParagraphFormat.KeepWithNext = True
+                if anterior.Text.strip().startswith("Tabela "):
+                    tb.Borders.Enable = False
+                    tb.Borders(-1).LineStyle = 1
+                    tb.Borders(-3).LineStyle = 1
+                    tb.Rows(1).Borders(-3).LineStyle = 1
 
         for i in range(1, doc.ListParagraphs.Count + 1):
             doc.ListParagraphs(i).FirstLineIndent = 0
@@ -270,6 +277,7 @@ def formatar_no_word(capa=True):
             sh.Range.ParagraphFormat.Alignment = 1
 
         # legenda acima e fonte abaixo da figura, em tamanho menor (ABNT)
+        em_referencias = False
         for i in range(1, doc.Paragraphs.Count + 1):
             p = doc.Paragraphs(i)
             texto = p.Range.Text.strip()
@@ -280,10 +288,22 @@ def formatar_no_word(capa=True):
             }:
                 p.Alignment = 1
                 p.Range.Font.Bold = True
-            if re.match(r"Figura \d+ –", texto) or texto.startswith("Fonte:"):
+            legenda = bool(re.match(r"(?:Figura|Tabela|Quadro) \d+ –", texto))
+            fonte = texto.startswith(("Fonte:", "Fonte das figuras:"))
+            if legenda or fonte:
                 p.Range.Font.Size = 10
                 p.Alignment, p.FirstLineIndent, p.LineSpacingRule = 1, 0, 0
-                p.KeepWithNext = texto.startswith("Figura")
+                p.KeepWithNext = legenda
+            if p.Range.InlineShapes.Count:
+                p.KeepWithNext = True
+            if texto.casefold() == "referências":
+                em_referencias = True
+                p.Alignment = 1
+            elif em_referencias and texto:
+                p.Range.Font.Size = 12
+                p.Alignment, p.FirstLineIndent, p.LineSpacingRule = 0, 0, 0
+                p.SpaceAfter = 12
+                p.KeepWithNext = False
 
         if capa:
             s2 = doc.Sections(2)
@@ -291,6 +311,9 @@ def formatar_no_word(capa=True):
                 cab.LinkToPrevious = False
             for cab in (doc.Sections(1).Headers(1), doc.Sections(1).Footers(1)):
                 cab.Range.Text = ""
+            doc.Sections(1).Headers(1).PageNumbers.RestartNumberingAtSection = True
+            doc.Sections(1).Headers(1).PageNumbers.StartingNumber = 0
+            s2.Headers(1).PageNumbers.RestartNumberingAtSection = False
             s2.Headers(1).PageNumbers.Add(2, True)            # canto superior direito, a partir do texto
         else:
             doc.Sections(1).Footers(1).PageNumbers.Add(2, True)

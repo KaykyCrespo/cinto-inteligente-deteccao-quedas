@@ -10,6 +10,8 @@ A solução apresentada neste guia é o Cinto Inteligente com IoT e Inteligênci
 
 O projeto está enquadrado na vertente SmartCity – Cidades Inteligentes e Infraestrutura Urbana.
 
+Este manual descreve a implementação disponível no repositório: aquisição inercial a 100 Hz, faixas de ±8 g e ±2000 °/s, transmissão dos sensores por GATT, medição de RSSI por GATT/Advertising e armazenamento em SQLite. O ECG é apresentado como sinal bruto experimental; não há cálculo de frequência cardíaca neste firmware. A parte escrita de apoio ainda contém descrições de uma arquitetura anterior (MySQL, sensores por Advertising, 4 Hz, ±2 g e cálculo de BPM), cuja atualização precisa ser confirmada pela equipe. Essas descrições não devem substituir as configurações desta versão.
+
 A equipe executora é composta pelos seguintes integrantes, com as respectivas funções no projeto:
 
 - Aluisio Pereira Alves (RA N135891) – Pesquisador e redator;
@@ -25,15 +27,17 @@ O sistema é uma **infraestrutura de sensoriamento** para esses espaços, com as
 
 - **Rede fixa de sensores:** antenas instaladas no prédio captam o sinal do cinto e medem a intensidade do sinal recebido (RSSI) em cada ponto do ambiente.
 - **Transporte padronizado:** os dados trafegam por Wi-Fi e MQTT, protocolo de publicação e assinatura usado em telemetria de cidades inteligentes.
-- **Processamento local:** a classificação e a localização rodam no computador do prédio, sem câmeras e sem nuvem, o que reduz a latência e preserva a privacidade (LGPD).
-- **Serviço de alerta:** a equipe de cuidado recebe o aviso em segundos, com a região do ambiente onde a pessoa caiu.
+- **Processamento local:** a classificação e a estimativa de localização são executadas no computador do ambiente, sem depender de processamento em nuvem. A notificação pelo Telegram utiliza um serviço externo e requer conexão com a internet. A ausência de câmeras não comprova, por si só, conformidade com a LGPD; o tratamento dos dados de saúde exige avaliação específica de acesso, finalidade, retenção e compartilhamento.
+- **Serviço de alerta:** o sistema solicita o envio de uma notificação de possível queda, acompanhada da região estimada quando disponível. O tempo de entrega ponta a ponta não foi quantificado neste manual e depende da comunicação e do serviço externo.
 - **Escalabilidade:** a mesma rede pode ser replicada em vários prédios e, como evolução futura, integrada a centrais de teleassistência do município.
 
-**Problema atacado:** a demora em perceber uma queda de pessoa idosa que vive ou permanece sozinha em ambiente interno. Muitas soluções dependem de a própria pessoa acionar um botão de emergência, o que nem sempre é possível após a queda. Outras usam GPS, pouco confiável em ambientes internos, ou geram alarmes falsos a cada movimento brusco.
+**Problema de pesquisa:** a demora em perceber uma possível queda de pessoa idosa que vive ou permanece sozinha em ambiente interno. Investiga-se uma alternativa de alerta automático, em contraste com o acionamento manual, combinada com estimativa de localização interna. O protótipo permanece sujeito a falsos positivos, falsos negativos e indisponibilidade de comunicação.
 
 **Diferenciais da proposta:** alerta automático, que não depende de quem caiu; privacidade, sem câmeras; e inovação frugal, com componentes de baixo custo e fáceis de encontrar (ESP32, MPU6050, AD8232), acessíveis a instituições e famílias.
 
 **Hipótese orientadora:** um cinto com sensor inercial na cintura, classificado por Random Forest treinado em dataset público, detecta possíveis quedas com alta sensibilidade e, combinado às antenas BLE, informa a região aproximada do ambiente onde a queda ocorreu.
+
+A sensibilidade foi avaliada por ensaio no SisFall (Seção 4.4), não em uso clínico contínuo. A hipótese de localização exige comparação com posições de referência e não é confirmada apenas pelos ensaios de RSSI. A integração funcional, a precisão da localização e a latência devem ser avaliadas separadamente; não se considera a hipótese integralmente comprovada pelas métricas do classificador.
 
 ### 1.3 Diagrama de arquitetura de alto nível
 
@@ -42,6 +46,8 @@ O sistema é uma **infraestrutura de sensoriamento** para esses espaços, com as
 ![Arquitetura em camadas](esquemas/arquitetura_camadas.png)
 
 Fonte das figuras: elaborado pelos autores (2026).
+
+**Quadro 1 – Camadas, componentes e protocolos do ecossistema**
 
 | Camada | Componentes | Protocolos |
 |---|---|---|
@@ -72,6 +78,8 @@ Fonte das figuras: elaborado pelos autores (2026).
 
 **Cinto (1 unidade)**
 
+**Quadro 2 – Lista de materiais do cinto**
+
 | Qtd | Componente | Modelo / part number | Tensão de operação | Função no circuito |
 |---|---|---|---|---|
 | 1 | Microcontrolador | ESP32-C3 Super Mini (Espressif ESP32-C3, RISC-V, Wi-Fi + BLE 5) | 5 V no pino 5V (regulador interno para 3,3 V) | Lê os sensores a 100 Hz e transmite por BLE |
@@ -92,6 +100,8 @@ Fonte: Elaborado pelos autores (2026).
 
 **Antena (por unidade; montar 3: Anchor 1, Anchor 2, Anchor 3)**
 
+**Quadro 3 – Lista de materiais por antena**
+
 | Qtd | Componente | Modelo / part number | Tensão de operação | Função no circuito |
 |---|---|---|---|---|
 | 1 | Microcontrolador | ESP32 DevKit V1 (ESP32-WROOM-32, conversor USB-serial CP2102, Micro-USB) | 5 V no pino VIN | Recebe BLE do cinto, mede RSSI e publica por Wi-Fi/MQTT |
@@ -108,6 +118,8 @@ Fonte: Elaborado pelos autores (2026).
 
 **Infraestrutura**
 
+**Quadro 4 – Infraestrutura e acessórios necessários**
+
 | Qtd | Item | Observação |
 |---|---|---|
 | 1 | Computador central | Windows 10/11 64 bits; executa broker, backend e painel |
@@ -121,6 +133,8 @@ Fonte: Elaborado pelos autores (2026).
 ### 2.2 Pinagem (pinout)
 
 **Cinto — ESP32-C3 Super Mini ↔ periféricos** (definida em `Arduino/cinto_mvp_v1/cinto_mvp_v1.ino`)
+
+**Quadro 5 – Pinagem do ESP32-C3 e dos periféricos do cinto**
 
 | Pino do ESP32-C3 | Pino do periférico | Sinal | Observação |
 |---|---|---|---|
@@ -142,6 +156,8 @@ Fonte: Elaborado pelos autores (2026).
 
 **Cinto — alimentação**
 
+**Quadro 6 – Ligações de alimentação do cinto**
+
 | Origem | Destino |
 |---|---|
 | Baterias 18650 (+), em paralelo | TP4056 B+ |
@@ -158,7 +174,9 @@ Fonte: Elaborado pelos autores (2026).
 
 **Antena — ESP32 DevKit V1**
 
-A antena não tem sensores; só precisa de alimentação.
+A antena não possui sensores periféricos; suas ligações externas correspondem ao circuito de alimentação.
+
+**Quadro 7 – Ligações de alimentação da antena**
 
 | Origem | Destino |
 |---|---|
@@ -174,6 +192,8 @@ Fonte: Elaborado pelos autores (2026).
 ### 2.3 Diagrama esquemático e montagem
 
 Os esquemas elétricos mostram as conexões de alimentação e de sinal dos dois dispositivos. Em ambos, a bateria recarregável é ligada ao módulo TP4056, responsável pela carga, e ao conversor MT3608, que fornece 5 V ao circuito; a chave gangorra permite ligar e desligar o conjunto. No cinto, o ESP32-C3 recebe os dados de movimento do MPU6050 pela comunicação I²C e o sinal cardíaco do AD8232, que também indica quando os eletrodos estão soltos. Na antena, o ESP32 DevKit V1 funciona como unidade de comunicação e não possui sensores conectados. Consulte as tabelas de ligações desta seção para conferir os pinos e sinais.
+
+> **Pendência de validação elétrica:** nas Figuras 5 e 6, a chave gangorra aparece após o MT3608; nas tabelas da Seção 2.2 e nos passos da Seção 2.5, aparece antes do conversor. A equipe deve confirmar a ligação física e alinhar desenhos e instruções antes de permitir sua reprodução por terceiros. Se a chave estiver após o MT3608, o conversor poderá permanecer alimentado com a chave desligada. Não usar as representações divergentes como instrução final de montagem nem presumir isolamento entre USB e bateria sem verificar o circuito real.
 
 **Figura 3 – Disposição dos módulos no case do cinto**
 
@@ -233,6 +253,8 @@ Os arquivos editáveis dos esquemas (`cinto.fzz` e `antena.fzz`) e o instalador 
 
 **Tensões**
 
+**Tabela 1 – Tensões nominais de alimentação**
+
 | Item | Cinto | Antena |
 |---|---|---|
 | Baterias | 2 × 18650 em paralelo, 3,7 V nominal (3,0–4,2 V) | 1 × 18650, 3,7 V nominal (3,0–4,2 V) |
@@ -243,7 +265,9 @@ Os arquivos editáveis dos esquemas (`cinto.fzz` e `antena.fzz`) e o instalador 
 Fonte: Elaborado pelos autores (2026).
 
 
-**Consumo por componente** (valores adotados pela equipe; o do ESP32 é o de pior caso)
+**Consumo por componente** (hipóteses de dimensionamento adotadas pela equipe, não medições)
+
+**Tabela 2 – Correntes adotadas como hipóteses de dimensionamento**
 
 | Dispositivo | Componente | Corrente |
 |---|---|---|
@@ -265,7 +289,7 @@ Os sensores recebem 3,3 V de um regulador linear, que deixa passar a mesma corre
 Bateria 3,7 V → TP4056 (proteção) → chave → MT3608 (sobe para 5 V) → regulador da placa (desce para 3,3 V) → ESP32 + sensores
 ```
 
-A energia passa por duas conversões, e cada uma perde uma parte. O MT3608 é um conversor chaveado que eleva a tensão com cerca de 85% de eficiência. O regulador da placa é linear: deixa passar a mesma corrente que recebe e transforma em calor a diferença de tensão (5 V − 3,3 V).
+A energia passa por duas conversões, com perdas em ambas. Para os cálculos a seguir, adota-se eficiência de 85% para o MT3608; esse valor não foi medido neste protótipo e depende da tensão, da carga e do módulo utilizado. No modelo simplificado do regulador linear, despreza-se sua corrente quiescente e considera-se que a corrente de entrada é aproximadamente igual à de saída; a diferença de tensão (5 V − 3,3 V) é dissipada como calor. Os valores de corrente adotados precisam ser confrontados com documentação do fabricante e medições na configuração real.
 
 **Por que não basta dividir capacidade por consumo:** a conta direta ($\frac{2000}{355} \approx 5{,}6$ h no cinto; $\frac{1000}{350} \approx 2{,}9$ h na antena) compara a capacidade da bateria, que trabalha em 3,7 V, com a corrente do circuito, que trabalha em 5 V. Ela ignora a elevação de tensão, as perdas do conversor e a parte da carga que não pode ser usada. Por isso o cálculo é feito em potência, nos passos a seguir.
 
@@ -303,6 +327,8 @@ em que:
 - $I_{bat}$ é a corrente retirada da bateria (A);
 - $V_{bat}$ é a tensão da bateria (3,7 V nominal; cerca de 3,3 V quando está quase vazia).
 
+**Tabela 3 – Potências e correntes estimadas para o conjunto**
+
 | Grandeza | Cinto | Antena |
 |---|---|---|
 | $I_{total}$ (5 V) | 0,355 A | 0,350 A |
@@ -314,7 +340,7 @@ em que:
 Fonte: Elaborado pelos autores (2026).
 
 
-A corrente na bateria (565 mA) é maior que a do circuito (355 mA) porque a bateria tem tensão menor que a saída: para entregar a mesma potência, ela precisa fornecer mais corrente e ainda cobrir a perda do conversor. À medida que a bateria descarrega, a tensão cai e a corrente sobe. Essas correntes ficam bem abaixo do limite do MT3608 (chave interna de 4 A). No cinto, elas se dividem entre as duas células em paralelo, cerca de 0,3 A em cada.
+A corrente estimada na bateria (565 mA) é maior que a do circuito (355 mA) porque a bateria tem tensão menor que a saída: para entregar a mesma potência, ela precisa fornecer mais corrente e cobrir as perdas. Sob carga de potência aproximadamente constante, a corrente tende a aumentar com a descarga. O limite da chave interna do MT3608 não deve ser interpretado como corrente contínua garantida na saída; é necessário verificar indutor, proteção, dissipação e especificação do módulo. No cinto, a divisão de cerca de 0,3 A por célula pressupõe duas células equivalentes, com tensões, capacidades e resistências internas compatíveis.
 
 **Autonomia**
 
@@ -340,7 +366,7 @@ $$
 em que:
 
 - $E_{útil}$ é a energia que pode ser usada antes do corte de proteção (Wh);
-- $f_{u}$ é a fração útil da carga (0,9), porque o circuito de proteção do TP4056 desliga a bateria perto de 2,5 V, antes de ela esvaziar totalmente.
+- $f_{u}$ é a fração útil adotada para o cálculo (0,9), não medida. A energia utilizável depende das células, da descarga e dos limiares de proteção do módulo efetivamente instalado; o corte não determina, sozinho, essa fração.
 
 **Passo 3 – Tempo de funcionamento**
 
@@ -352,6 +378,8 @@ em que:
 
 - $t$ é a autonomia (h);
 - $P_{bat}$ é a potência retirada da bateria, calculada acima (W).
+
+**Tabela 4 – Autonomia estimada sob as hipóteses adotadas**
 
 | Dispositivo | Baterias | Energia nominal | Energia útil | $P_{bat}$ | **Autonomia** |
 |---|---|---|---|---|---|
@@ -371,11 +399,13 @@ $$
 
 em que $C_{mAh}$ é a capacidade de cada bateria em mAh e $I_{bat}$ é a corrente na bateria em mA. Para o cinto: 2 × 1000 × 0,9 = 1800 mAh; 1800 ÷ 565 ≈ 3,19 h. Para a antena: 1000 × 0,9 = 900 mAh; 900 ÷ 556 ≈ 1,62 h. Os dois métodos dão o mesmo resultado.
 
-Como os 350 mA do ESP32 são um valor de pior caso, a autonomia real tende a ser **maior** que a calculada. Para sessões longas, deixe as antenas no carregador USB-C: o TP4056 alimenta o circuito enquanto carrega.
+As autonomias de 3,19 h e 1,62 h são **estimativas condicionadas às hipóteses adotadas**, não resultados experimentais nem tempos mínimos garantidos. O consumo médio e de pico, a capacidade útil e a eficiência precisam ser medidos. A corrente de 350 mA adotada para o ESP32 não estabelece, sem referência específica, um limite superior comprovado para o conjunto.
+
+**Recarga:** até validar o comportamento do módulo e seu gerenciamento de alimentação, realizar a carga com o dispositivo desligado e fora do corpo. Não recomendar operação contínua das antenas durante a carga apenas pela presença do TP4056; verificar compartilhamento de alimentação, término da carga, aquecimento e proteção na montagem real.
 
 **Tempo de recarga**
 
-O TP4056 carrega em duas fases. Na fase de corrente constante (CC), aplica 1 A até a bateria chegar a 4,2 V, o que enche cerca de 80% da carga. Na fase de tensão constante (CV), mantém 4,2 V enquanto a corrente cai até cerca de 100 mA, quando a carga termina. Como a fase CV é lenta, acrescenta-se cerca de 20% ao tempo:
+O TP4056 utiliza carga em corrente constante e tensão constante (CC/CV). A corrente programada depende do resistor de configuração e das condições térmicas do módulo. Nos cálculos abaixo, adotam-se 1 A e um fator empírico de 1,2 para representar a etapa CV; não são tempos de recarga medidos. A tensão de término e o critério de encerramento devem ser conferidos na documentação do componente e no módulo instalado, sem assumir que a transição CC/CV corresponde a uma porcentagem fixa da capacidade.
 
 $$
 t_{carga} \approx k \cdot \frac{n \cdot C}{I_{carga}}
@@ -389,6 +419,8 @@ em que:
 - $C$ é a capacidade de cada bateria (Ah);
 - $I_{carga}$ é a corrente de carga do TP4056 (1 A).
 
+**Tabela 5 – Tempos de recarga estimados com o dispositivo desligado**
+
 | Dispositivo | Cálculo | Tempo de recarga |
 |---|---|---|
 | Cinto (2 × 1000 mAh) | 1,2 × 2,0 Ah / 1 A | **≈ 2,4 h (2 h 24 min)** |
@@ -397,7 +429,7 @@ em que:
 Fonte: Elaborado pelos autores (2026).
 
 
-**Recarga com o aparelho ligado:** o TP4056 entrega no máximo 1 A no total, e parte dessa corrente vai para o circuito. No cinto, o circuito consome cerca de 0,565 A, então sobram 1 − 0,565 ≈ 0,44 A para a bateria, e o tempo passa a ser $1{,}2 \times \frac{2{,}0}{0{,}44} \approx 5{,}5$ h, mais que o dobro. Na antena, 1 A equivale a 1C para uma célula de 1000 mAh; confira se a célula aceita essa corrente de carga.
+**Hipótese de recarga com o aparelho ligado, não validada:** se houvesse 1 A disponível e uma carga constante de 0,565 A no mesmo nó de alimentação, a diferença seria aproximadamente 0,44 A, resultando em $1{,}2 \times \frac{2{,}0}{0{,}44} \approx 5{,}5$ h no modelo simplificado. Essa conta não demonstra o funcionamento do circuito real: a corrente varia com a tensão, e a carga pode interferir no término da recarga. O valor é mantido somente como exemplo condicionado, não como instrução operacional. Na antena, 1 A equivale a 1C para uma célula de 1000 mAh; conferir se a célula aceita essa corrente antes de programá-la.
 
 **Validação na bancada:** para confirmar os valores, ligue o multímetro (escala de A) em série entre o polo positivo da bateria e o B+ do TP4056, com o dispositivo em operação normal, anote a corrente média e substitua esse $I_{bat}$ medido na fórmula de conferência em mAh.
 
@@ -427,23 +459,25 @@ $$
 
 em que $P_{reg}$ é a potência transformada em calor no regulador (W), $V_{5V}$ é a tensão de entrada (5 V), $V_{3V3}$ é a tensão de saída (3,3 V) e $I_{total}$ é a corrente do circuito (A).
 
+**Tabela 6 – Dissipação térmica estimada dos componentes**
+
 | Componente | Cálculo | Potência dissipada | Observação |
 |---|---|---|---|
-| TP4056 (meio da carga) | (5 − 3,7) V × 1 A | ≈ 1,3 W | Componente mais quente; o chip reduz a corrente sozinho se esquentar demais |
-| TP4056 (início, bateria vazia em 3,0 V) | (5 − 3,0) V × 1 A | ≈ 2,0 W | Pior momento da carga |
-| MT3608 | 2,09 − 1,78 (cinto); 2,06 − 1,75 (antena) | ≈ 0,31 W | Morno; manter folga no case |
-| Regulador 3,3 V da placa | 1,7 × 0,355 (cinto); 1,7 × 0,350 (antena) | ≈ 0,60 W | Aquece; a tampa perfurada da antena ajuda a ventilar |
+| TP4056 (meio da carga) | (5 − 3,7) V × 1 A | ≈ 1,3 W | Estimativa sob corrente de 1 A; conferir limitação térmica do componente |
+| TP4056 (início, bateria em 3,0 V) | (5 − 3,0) V × 1 A | ≈ 2,0 W | Dissipação maior sob a mesma corrente; medir temperatura na montagem |
+| MT3608 | 2,09 − 1,78 (cinto); 2,06 − 1,75 (antena) | ≈ 0,31 W | Perda estimada; manter folga e verificar aquecimento |
+| Regulador 3,3 V da placa | 1,7 × 0,355 (cinto); 1,7 × 0,350 (antena) | ≈ 0,60 W | Identificar o regulador e avaliar a ventilação do case |
 
 Fonte: Elaborado pelos autores (2026).
 
 
-O aquecimento de cada componente pode ser estimado por
+O aumento de temperatura pode ser estimado, em regime aproximadamente estacionário e sob condições compatíveis com a resistência térmica informada pelo fabricante, por
 
 $$
 \Delta T = P \cdot \theta_{JA}
 $$
 
-em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a potência dissipada no componente (W) e $\theta_{JA}$ é a resistência térmica do encapsulamento ao ar (°C/W, informada na folha de dados). No regulador do DevKit, com $\theta_{JA}$ entre 60 e 90 °C/W, 0,60 W resultam em 36 a 54 °C acima do ambiente. O regulador do ESP32-C3 Super Mini é menor e esquentaria demais se o consumo fosse realmente 350 mA o tempo todo, o que reforça que esse valor é de pico e que a medição deve indicar consumo menor.
+em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a potência dissipada (W) e $\theta_{JA}$ é a resistência térmica junção-ambiente (°C/W). Como exemplo condicionado, $\theta_{JA}$ entre 60 e 90 °C/W e dissipação de 0,60 W resultariam em 36 a 54 °C de elevação. A faixa térmica não foi confirmada para os reguladores das placas utilizadas; o cálculo não comprova a temperatura real nem permite concluir que os 350 mA sejam necessariamente uma corrente de pico. Identificar os reguladores, consultar suas folhas de dados e medir o aquecimento no case fechado.
 
 **Para onde vai a energia do cinto:** dos 2,09 W retirados da bateria, cerca de 1,17 W (3,3 V × 0,355 A, 56%) são usados pelo ESP32 e pelos sensores, 0,60 W (29%) viram calor no regulador de 3,3 V e 0,31 W (15%) viram calor no MT3608. Quase metade da energia é perdida nas duas conversões (3,7 V → 5 V → 3,3 V); uma melhoria futura seria alimentar o circuito direto em 3,3 V a partir da bateria, com um regulador de baixa queda, sem passar pelos 5 V.
 
@@ -457,7 +491,7 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 
 ### 2.5 Ordem de montagem
 
-**Arquivos de impressão 3D:** os projetos estão na pasta `impressao_3d/` da raiz do repositório GitHub: `Case Cinto.3mf` para o cinto e `Case Antena.3mf` para a antena. Abra o arquivo correspondente em um fatiador compatível com 3MF (por exemplo, Cura, PrusaSlicer ou Bambu Studio), confira a orientação e as configurações de impressão e envie à impressora. Para obtê-los, abra `impressao_3d/` no GitHub e baixe cada arquivo, ou baixe o repositório completo pelo botão **Code → Download ZIP** e localize a pasta após descompactar.
+**Arquivos de impressão 3D:** os projetos estão na pasta [docs/impressao_3d](../impressao_3d/) do repositório GitHub: [Case Cinto.3mf](../impressao_3d/Case%20Cinto.3mf) para o cinto e [Case Antena.3mf](../impressao_3d/Case%20Antena.3mf) para a antena. Abra o arquivo correspondente em um fatiador compatível com 3MF (por exemplo, Cura, PrusaSlicer ou Bambu Studio), confira a orientação e as configurações de impressão e envie à impressora. Para obtê-los, abra `docs/impressao_3d/` no GitHub e baixe cada arquivo, ou baixe o repositório completo pelo botão **Code → Download ZIP** e localize essa pasta após descompactar.
 
 **Ferramentas:** ferro de solda e estanho, multímetro, alicate de corte e desencapador, tubos termorretráteis, fita dupla-face e cola quente, chave de fenda pequena (para o trimpot do MT3608 e os parafusos M3).
 
@@ -520,12 +554,14 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 
 ### 3.1 Requisitos mínimos
 
-**Obtenção do projeto:** todo o material do sistema está em um único repositório no GitHub, <https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas>: código do painel e do backend, firmware do cinto e das antenas, bibliotecas Arduino usadas, modelo de IA treinado, projetos imprimíveis dos cases (`impressao_3d/Case Cinto.3mf` e `impressao_3d/Case Antena.3mf`), documentação e o arquivo `requirements.txt` com as dependências Python. No GitHub, abra a pasta `impressao_3d/` na raiz do repositório para baixar os arquivos `.3mf` individualmente. Como alternativa, use o botão **Code → Download ZIP** e localize a pasta após descompactar, ou clone o repositório com Git:
+**Obtenção do projeto:** o material do sistema está organizado no repositório GitHub <https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas>: código do painel e do backend, firmware do cinto e das antenas, bibliotecas Arduino usadas, modelo de IA treinado, projetos imprimíveis dos cases em `docs/impressao_3d/Case Cinto.3mf` e `docs/impressao_3d/Case Antena.3mf`, documentação e o arquivo `requirements.txt` com as dependências Python. Os registros audiovisuais de testes estão em `dados/testes/` e são apresentados na Seção 5.6. Os arquivos adicionados localmente só estarão acessíveis à banca no GitHub após sua publicação. Para baixar os projetos `.3mf` individualmente, abra [docs/impressao_3d](../impressao_3d/). Como alternativa, use **Code → Download ZIP** e localize essa pasta após descompactar, ou clone o repositório com Git:
 
 ```powershell
 git clone https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas.git
 cd cinto-inteligente-deteccao-quedas
 ```
+
+**Quadro 8 – Requisitos de software e conectividade**
 
 | Item | Versão / requisito |
 |---|---|
@@ -543,6 +579,8 @@ Fonte: Elaborado pelos autores (2026).
 
 
 **Dependências Python** (`requirements.txt`):
+
+**Quadro 9 – Dependências Python e respectivas funções**
 
 | Pacote | Versão | Uso |
 |---|---|---|
@@ -571,6 +609,8 @@ Fonte: Elaborado pelos autores (2026).
 4. **Bibliotecas:** copie as pastas de `Arduino/libraries/` do repositório para `Documentos\Arduino\libraries\`. Outra opção é instalar pelo **Gerenciador de Bibliotecas** `NimBLE-Arduino` (h2zero) 2.5.2 e `PubSubClient` (Nick O'Leary) 2.8. Reinicie a IDE.
 
 #### 3.2.2 Drivers USB e reconhecimento da porta COM
+
+**Quadro 10 – Interfaces USB e drivers das placas**
 
 | Placa | Interface USB | Driver no Windows |
 |---|---|---|
@@ -621,6 +661,8 @@ Fonte: Elaborado pelos autores (2026).
 
 **Tópicos MQTT publicados pela antena:**
 
+**Quadro 11 – Tópicos MQTT e conteúdo das mensagens**
+
 | Tópico | Conteúdo |
 |---|---|
 | `oqpnb/anchor/<ID_ANTENA>` | `{OQPNB;id_antena;rssi;id_cinto;ax;ay;az;gx;gy;gz;eletrodos;ecg}` (com GATT) ou `{OQPNB;id_antena;rssi;id_cinto;;;;;;;;}` (só RSSI) |
@@ -644,6 +686,8 @@ Fonte: Elaborado pelos autores (2026).
 5. No Monitor Serial (115200), o cinto informa quando uma antena conecta, quando o código de ambiente é validado e quando o anúncio alterna entre conectável e beacon.
 
 **Comunicação BLE do cinto:**
+
+**Quadro 12 – Serviço GATT e anúncios BLE do cinto**
 
 | Elemento | Valor |
 |---|---|
@@ -712,7 +756,7 @@ O arquivo `requirements-docs.txt` traz dependências opcionais, usadas apenas pa
 
 #### 3.3.4 Variáveis de ambiente
 
-O painel lê as variáveis de ambiente do processo. Modelo (`.env.example`):
+O painel lê as variáveis de ambiente do processo. O exemplo abaixo reúne os parâmetros utilizados; o arquivo fornecido para credenciais locais é `segredos.env.exemplo`:
 
 ```dotenv
 # Telegram (obrigatórias para enviar alertas)
@@ -727,7 +771,7 @@ OQPNB_PORT=1883
 OQPNB_MODELO=modelos/modelo_mvp_8g.joblib
 OQPNB_DB=dados/oqpnb.db
 
-# Localização (padrão do ensaio de calibração)
+# Localização (valores iniciais do software; calibração não validada)
 OQPNB_LARGURA_M=5.0
 OQPNB_ALTURA_M=5.0
 OQPNB_RSSI_1M=-62
@@ -808,9 +852,11 @@ python scripts/reproduzir_csv.py dados/gravacoes/<arquivo>.csv --modelo modelos/
 
 ### 4.1 Objetivo operacional
 
-A IA faz **classificação binária supervisionada** de janelas de movimento: para cada janela de 2,5 s do sensor inercial, estima a **probabilidade de possível queda** em relação a atividade normal. Se a probabilidade passa do limiar (padrão 0,50, ajustável no painel), o sistema registra a queda, mostra o alerta no painel e envia uma mensagem pelo Telegram. A localização por RSSI e o ECG não entram no modelo; servem de contexto para o alerta.
+A IA realiza **classificação binária supervisionada** de janelas de movimento: para cada janela de 2,5 s do sensor inercial, retorna uma estimativa de probabilidade da classe queda, usada para indicar **possível queda** em relação a atividade sem queda. Esse valor não foi validado como probabilidade calibrada de risco clínico. Quando o critério de decisão é atendido (limiar padrão 0,50, ajustável no painel), o sistema registra um evento de possível queda e apresenta o alerta; o envio pelo Telegram depende de habilitação, credenciais e conectividade. A localização por RSSI e o ECG não integram o classificador e são informações contextuais.
 
 ### 4.2 Dataset de treinamento e validação
+
+**Quadro 13 – Caracterização do conjunto SisFall utilizado**
 
 | Item | Descrição |
 |---|---|
@@ -830,18 +876,20 @@ Fonte: Elaborado pelos autores (2026).
 3. **Simulação do sensor do cinto:** saturação em ±8 g / ±2000 °/s, as mesmas faixas configuradas no MPU6050.
 4. **Janelamento:** janelas de 2,5 s com passo de 0,5 s. Nos registros de queda, entram como positivas as janelas que contêm o impacto.
 
-**Engenharia de atributos** (`features.py`, a mesma função no treino e na operação). O uso de magnitudes torna os atributos independentes da orientação do sensor, o que dispensa normalização adicional:
+**Engenharia de atributos** (`features.py`, a mesma função no treino e na operação). Magnitudes e o ângulo entre vetores são invariantes a uma rotação fixa ideal dos eixos; isso não elimina offsets, ruído ou artefatos de movimento. O Random Forest utilizado não exige escalonamento dos atributos para seus particionamentos por limiar, questão distinta da calibração física do sensor. A interpretação de `tilt` como mudança da direção da gravidade pressupõe trechos em que a aceleração dinâmica não predomine:
+
+**Tabela 7 – Atributos calculados e importâncias no modelo final**
 
 | Atributo | Definição | Importância no modelo |
 |---|---|---|
-| `tilt` | Ângulo entre a gravidade no início e no fim da janela (graus) | 0,33 |
+| `tilt` | Ângulo entre os vetores médios de aceleração no início e no fim da janela (graus) | 0,33 |
 | `gstd` | Desvio padrão de \|ω\| (°/s) | 0,18 |
 | `amax` | Máximo de \|a\| (g) | 0,13 |
 | `gmax` | Máximo de \|ω\| (°/s) | 0,12 |
 | `astd` | Desvio padrão de \|a\| (g) | 0,08 |
 | `jerk` | Máxima variação de \|a\| por segundo (g/s) | 0,07 |
-| `post_std` | Desvio de \|a\| no último 0,5 s (imobilidade após o impacto) | 0,04 |
-| `amin` | Mínimo de \|a\| (queda livre) | 0,04 |
+| `post_std` | Desvio padrão de \|a\| nos últimos 0,5 s; descreve variabilidade, não comprova imobilidade após impacto | 0,04 |
+| `amin` | Mínimo de \|a\| na janela; não comprova, isoladamente, queda livre | 0,04 |
 
 Fonte: Elaborado pelos autores (2026).
 
@@ -850,13 +898,17 @@ Fonte: Elaborado pelos autores (2026).
 
 **Algoritmo:** Random Forest (`sklearn.ensemble.RandomForestClassifier`).
 
-**Por que Random Forest e não as alternativas:**
+**Justificativa da escolha e limites da comparação:**
 
-- **Regra de limiar** (pico de aceleração): simples, mas gera muitos falsos positivos em atividades bruscas (sentar rápido, tropeçar).
-- **Redes neurais (CNN/LSTM):** exigem mais dados, mais tempo de treino e mais poder de inferência, e são menos interpretáveis.
-- **Random Forest:** funciona bem com poucos atributos tabulares, não exige normalização, tolera ruído, informa a importância de cada atributo e tem inferência de milissegundos em CPU comum. Está entre os classificadores mais usados na detecção de quedas com sensores vestíveis.
+- **Regra de limiar** (pico de aceleração): alternativa simples a ser avaliada sob a mesma divisão por voluntário. Não foram apresentados neste manual resultados desse classificador; não se afirma superioridade empírica do Random Forest em relação a ele.
+- **Redes neurais (CNN/LSTM):** alternativas para modelar padrões temporais, não implementadas nem comparadas neste experimento. Seu custo e desempenho dependem da arquitetura, dos dados e do hardware; não se presume inferioridade ou exigência universal de mais recursos.
+- **Random Forest:** foi escolhido para trabalhar com os atributos tabulares definidos pela equipe e disponibilizar importância por redução de impureza (Breiman, 2001; Pedregosa et al., 2011). Os resultados deste modelo estão na Seção 4.4. O tempo de inferência no computador de operação não foi medido neste manual; não se garante processamento em milissegundos.
+
+A comparação experimental com uma regra de limiar, prevista nos objetivos da parte escrita, permanece pendente de registro dos resultados. Sua ausência limita conclusões sobre a vantagem relativa do algoritmo, mas não altera os valores medidos para o Random Forest.
 
 **Hiperparâmetros:**
+
+**Quadro 14 – Configuração do Random Forest**
 
 | Parâmetro | Valor | Motivo |
 |---|---|---|
@@ -884,6 +936,8 @@ Esse critério considera a maior probabilidade ao longo de todo o ensaio. Portan
 
 **Matriz de confusão (validação cruzada por voluntário, limiar 0,50):**
 
+**Tabela 8 – Matriz de confusão por ensaio, com limiar 0,50**
+
 |  | Previsto: queda | Previsto: atividade |
 |---|---|---|
 | **Real: queda (1.798)** | VP = 1.777 | FN = 21 |
@@ -891,6 +945,8 @@ Esse critério considera a maior probabilidade ao longo de todo o ensaio. Portan
 
 Fonte: Elaborado pelos autores (2026).
 
+
+**Tabela 9 – Métricas agregadas da validação por voluntário**
 
 | Métrica | Fórmula | Valor |
 |---|---|---|
@@ -908,6 +964,8 @@ em que VP (verdadeiros positivos) são ensaios de queda classificados como queda
 **Sensibilidade por fold:** 96,8% · 98,1% · 100% · 100% · 99,5%. **Especificidade por fold:** 96,3% · 94,8% · 97,4% · 94,2% · 93,6%.
 
 **Efeito do limiar (configurável no painel):**
+
+**Tabela 10 – Sensibilidade e especificidade por limiar de decisão**
 
 | Limiar | Sensibilidade | Especificidade |
 |---|---|---|
@@ -931,18 +989,21 @@ Fonte: Elaborado pelos autores (2026).
 
 ### 4.5 Declaração formal de uso de IA assistiva
 
-Foram usadas ferramentas de IA generativa (modelos de linguagem) como apoio na confecção da documentação, da diagramação e do código, conforme a tabela abaixo. Nenhuma ferramenta de IA é autora ou coautora do trabalho. Todo o conteúdo gerado foi revisado, testado e validado pelos integrantes, que assumem **inteira responsabilidade técnica, ética e legal** pelos artefatos entregues. Não foram inseridos nas ferramentas dados pessoais ou sensíveis de participantes.
+Foram usadas ferramentas de IA generativa como apoio à documentação, à diagramação e ao código. A tabela preserva as informações declaradas pela equipe na parte escrita, sem tratá-las como comprovação independente. Os nomes de versões e percentuais devem ser confrontados com os registros de uso antes da entrega. Nenhuma ferramenta é autora ou coautora do trabalho; a responsabilidade pela revisão, validação e conteúdo final é dos integrantes. A declaração de ausência de dados pessoais ou sensíveis enviados às ferramentas também depende da conferência dos registros pela equipe.
+
+**Quadro 15 – Uso declarado de ferramentas de IA assistiva e pendências de comprovação**
 
 | Ferramenta | Versão e ambiente | Período | Finalidade | Intervenção humana |
 |---|---|---|---|---|
-| Claude (Anthropic) | claude-opus-5-5, usado no aplicativo | 14/09/2026 a 12/11/2026 | Organização do material do grupo, revisão ortográfica, apoio para as normas ABNT e criação de diagramas e tabelas | Todas as partes do texto foram revisadas, com taxa de correção de 80% sobre todo o documento |
-| Claude (Anthropic) | Sonnet 4.6 low, usado no aplicativo | 14/09/2026 a 12/11/2026 | Desenvolvimento do sistema web e ajustes no código dos eletrônicos | Código inteiramente revisado pelos integrantes; refatoração de cerca de 75% do código |
-| ChatGPT (OpenAI) | ChatGPT 5.6 Sol extra alto | 14/10/2026 a 12/11/2026 | Desenvolvimento do sistema web e ajustes no código dos eletrônicos | Código inteiramente revisado pelos integrantes; refatoração de cerca de 75% do código |
+| Claude (Anthropic) | Denominação informada: claude-opus-5-5; versão não confirmada | 14/09/2026 a 12/11/2026, conforme declaração da equipe | Organização do material, revisão e diagramas | Correção de 80% informada pela equipe; método de cálculo e registros não apresentados neste manual |
+| Claude (Anthropic) | Denominação informada: Sonnet 4.6 low; versão não confirmada | 14/09/2026 a 12/11/2026, conforme declaração da equipe | Desenvolvimento web e firmware | Refatoração de cerca de 75% informada; método de cálculo e registros não apresentados neste manual |
+| ChatGPT (OpenAI) | Denominação informada: ChatGPT 5.6 Sol extra alto; versão não confirmada | 14/10/2026 a 12/11/2026, conforme declaração da equipe | Desenvolvimento web e firmware | Refatoração de cerca de 75% informada; método de cálculo e registros não apresentados neste manual |
+| GitHub Copilot | Assistente no VS Code; modelo não identificado nesta revisão | 12/11/2026, revisão deste manual | Diagnóstico técnico, revisão textual e ajustes no gerador de documentos | Alterações sujeitas à aprovação e à revisão final dos integrantes; nenhum percentual de intervenção foi calculado |
 
 Fonte: Elaborado pelos autores (2026).
 
 
-Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser disponibilizados ao orientador e à banca, se solicitado. A declaração completa, assinada, está no Apêndice A do TCC.
+A equipe informa manter registros de prompts e saídas. A existência, a disponibilidade e a integridade desse arquivo precisam ser confirmadas antes de afirmar rastreabilidade completa. Conferir também a formalização e a assinatura da declaração no Apêndice A do TCC. Percentuais sem método verificável não devem ser apresentados como indicadores auditados.
 
 > O modelo de Random Forest do produto **não** é IA generativa: foi treinado pela equipe com o script `scripts/treino_sisfall.py` sobre o dataset público SisFall.
 
@@ -962,6 +1023,8 @@ Todos os prompts e as saídas brutas estão arquivados pela equipe e podem ser d
 
 **Verificação do handshake:**
 
+**Quadro 16 – Verificações de comunicação e aquisição na partida**
+
 | Ponto | Onde verificar | Esperado |
 |---|---|---|
 | Antena ↔ Wi-Fi/MQTT | Monitor Serial da antena; painel → Detalhes | Linha `[STATUS] ... WiFi: ...` sem falhas e `TX MQTT` crescendo; antena **online** |
@@ -976,7 +1039,7 @@ Fonte: Elaborado pelos autores (2026).
 **Calibração de repouso dos sensores:**
 
 1. Com o cinto parado sobre a mesa por 10 s, abra **Detalhes → Gráficos de Sinais**. A magnitude da aceleração deve ficar próxima de **1 g** (gravidade) e o giroscópio próximo de **0 °/s**.
-2. O modelo usa magnitudes e variações (Seção 4.2), por isso não depende de offset fino do MPU6050. Se o repouso se afastar muito de 1 g, verifique a fixação do sensor e as faixas configuradas no firmware.
+2. Magnitudes não corrigem offsets físicos (Seção 4.2). Se o repouso se afastar de 1 g ou o giroscópio não se aproximar de 0 °/s, verificar a fixação, as faixas, as condições de medição e a necessidade de calibração do sensor. Não modificar o pré-processamento usado pelo modelo sem validar a compatibilidade entre treino e operação.
 3. **ECG:** com o usuário sentado e parado, o traçado deve mostrar complexos QRS regulares. O ECG é **experimental e sem finalidade médica**.
 
 **Configuração do ambiente (localização):**
@@ -989,19 +1052,22 @@ Fonte: Elaborado pelos autores (2026).
 
 1. Coloque o cinto, vestido, a **1 m** de uma antena, de frente para ela.
 2. Na barra lateral, clique em **Gravar amostras** por ~60 s e depois em **Parar gravação**.
-3. Calcule a mediana do RSSI dessa antena no CSV de `dados/gravacoes/`. Esse é o $RSSI_{1m}$ → `OQPNB_RSSI_1M`.
-4. Repita a 2, 3 e 5 m e estime o expoente de perda:
+3. Separar os registros dessa antena por origem (GATT ou Advertising) e calcular a mediana por segundo antes da mediana do ensaio, reduzindo o peso de RSSIs repetidos nas linhas de sensores. Não preencher lacunas. Registrar altura, orientação, movimento, obstáculos e distância real. O valor é um candidato a $RSSI_{1m}$, não uma referência validada automaticamente.
+4. Repetir a 2, 3, 5 e 7 m, mantendo a mesma antena, altura, orientação e modo de recepção, com repetições e posições de referência. Como aproximação entre dois pontos, estimar:
 
    $$
    n_{perda} = \frac{RSSI_{1m} - RSSI_{d}}{10 \log_{10} d}
    $$
 
-   em que $n_{perda}$ é o expoente de perda do ambiente (adimensional), $RSSI_{1m}$ é a mediana do RSSI medida a 1 m (dBm), $RSSI_{d}$ é a mediana do RSSI medida à distância $d$ (dBm) e $d$ é a distância entre o cinto e a antena (m). O resultado vai em `OQPNB_N_PERDA` (valores típicos em ambiente interno: 1,6 a 3,3).
-5. Reinicie o painel com as novas variáveis.
+   em que $n_{perda}$ é o expoente de perda (adimensional), $RSSI_{1m}$ e $RSSI_{d}$ são as medianas dos ensaios (dBm) e $d$ é a distância real entre o cinto e a antena, em metros ($d > 1$). A fórmula corresponde a $\log_{10}(d/1\,\mathrm{m})$ e não valida o modelo por si só. Preferir ajuste com todos os pontos e examinar resíduos, repetibilidade e erro de localização contra posições conhecidas.
+5. Somente adotar `OQPNB_RSSI_1M` e `OQPNB_N_PERDA` se os ensaios controlados sustentarem a relação distância-RSSI e melhorarem a localização em dados de verificação separados. Não há um limite de erro de aceitação definido neste manual: ele deve ser estabelecido conforme o objetivo de uso antes da avaliação. Caso o sinal seja não monotônico ou o ajuste não seja sustentado, manter os parâmetros iniciais como não validados e registrar a localização como estimativa de baixa confiança.
+6. Após aprovação dos parâmetros, reiniciar o painel com as novas variáveis. Os testes de 1, 2, 3, 5 e 7 m em `dados/ensaios_rssi/RESULTADO_ENSAIOS_RSSI.txt` não sustentaram uma nova calibração confiável e possuem condições de montagem a confirmar. Não utilizar automaticamente os expoentes exploratórios desse relatório.
 
 ### 5.2 Operação diária
 
 **Barra lateral:**
+
+**Quadro 17 – Controles da barra lateral e funções operacionais**
 
 | Controle | Função |
 |---|---|
@@ -1138,13 +1204,15 @@ Fonte das figuras: elaborado pelos autores (2026).
 
 1. **Mensagem de alerta:** apresenta o cinto, horário, antena mais próxima, quadrante, confiança e os dados de aceleração e inclinação associados ao evento.
 
-### O que fazer ao receber um alerta
+#### 5.2.1 Procedimento ao receber um alerta
 
 Confira o cartão do cinto e o quadrante indicado e entre em contato com a pessoa ou vá até o local. O sistema é de **apoio** e não substitui o acompanhamento presencial.
 
 ### 5.3 Resolução de problemas
 
 **USB e rede Wi-Fi**
+
+**Quadro 18 – Diagnóstico de USB e rede Wi-Fi**
 
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
@@ -1156,6 +1224,8 @@ Confira o cartão do cinto e o quadrante indicado e entre em contato com a pesso
 Fonte: Elaborado pelos autores (2026).
 
 **MQTT, BLE e fluxo de dados**
+
+**Quadro 19 – Diagnóstico de MQTT, BLE e fluxo de dados**
 
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
@@ -1171,6 +1241,8 @@ Fonte: Elaborado pelos autores (2026).
 
 **Sensores, IA e localização**
 
+**Quadro 20 – Diagnóstico de sensores, IA e localização**
+
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
 | Sensor | Status Eletrodo "Solto" / LED aceso | Eletrodo descolado, gel seco ou cabo P2 frouxo | Troque os eletrodos e encaixe o P2 até o fim |
@@ -1183,6 +1255,8 @@ Fonte: Elaborado pelos autores (2026).
 Fonte: Elaborado pelos autores (2026).
 
 **Telegram e operação**
+
+**Quadro 21 – Diagnóstico de Telegram e operação**
 
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
@@ -1205,6 +1279,8 @@ Fonte: Elaborado pelos autores (2026).
 
 **Manutenção preventiva:**
 
+**Quadro 22 – Rotinas de manutenção preventiva**
+
 | Frequência | Ação |
 |---|---|
 | A cada uso | Eletrodos novos; limpar a pele com álcool 70% antes de aplicar |
@@ -1218,3 +1294,49 @@ Fonte: Elaborado pelos autores (2026).
 | Periodicamente | Trocar o token do Telegram se ele tiver sido exposto e nunca versioná-lo |
 
 Fonte: Elaborado pelos autores (2026).
+
+### 5.5 Pendências de validação antes da entrega
+
+- **Arquitetura documental:** alinhar a parte escrita à versão descrita na Seção 1.1, sem atribuir ao protótipo cálculo de BPM ou recursos não implementados.
+- **Montagem elétrica:** confirmar a posição real da chave e corrigir a divergência entre Figuras 5/6 e tabelas; identificar os reguladores e validar proteção, recarga e isolamento entre USB e bateria.
+- **Evidências experimentais:** registrar corrente média e de pico, autonomia, recarga e temperatura; medir latência ponta a ponta e erro de localização com posições de referência. As estimativas e verificações visuais não substituem esses ensaios.
+- **Comparação de modelos:** executar ou documentar a comparação com limiares sob o mesmo protocolo de avaliação; não inferir superioridade sem resultados.
+- **Uso de IA:** conferir ferramentas, versões, períodos, registros e assinatura; definir método para percentuais ou substituí-los, com aprovação da equipe, por descrição qualitativa verificável.
+- **Normalização e bibliografia:** conferir as fontes primárias e a edição do manual de normalização exigida pela UNIP. As cinco seções seguem o apoio de entrega, mas a conformidade integral com as normas vigentes não está certificada sem essa conferência.
+
+### 5.6 Registros audiovisuais e rastreabilidade dos testes
+
+Os vídeos em [dados/testes](../../dados/testes/) podem complementar a documentação como **evidências visuais da execução dos procedimentos**, após conferência de seu conteúdo. Não substituem os dados brutos, a matriz de confusão, as medições elétricas ou os resultados de localização. A existência do arquivo e seu título, isoladamente, não comprovam que o detector reconheceu uma queda, que o alerta foi entregue ou que a posição estimada estava correta.
+
+**Quadro 23 – Registros audiovisuais disponíveis para conferência dos testes**
+
+| Arquivo | Identificação pelo nome do arquivo | Correspondência com dados e resultados |
+|---|---|---|
+| [Vídeo Andando perto da 3 Anchors.mp4](../../dados/testes/V%C3%ADdeo%20Andando%20perto%20da%203%20Anchors.mp4) | Atividade identificada como caminhada próxima às antenas | Conferir conteúdo e associar ao CSV e ao intervalo do ensaio; vínculo não confirmado neste manual |
+| [Vídeo Sentando perto das 3 Anchor.mp4](../../dados/testes/V%C3%ADdeo%20Sentando%20perto%20das%203%20Anchor.mp4) | Atividade identificada como sentar próximo às antenas | Conferir conteúdo e associar ao CSV e ao intervalo do ensaio; vínculo não confirmado neste manual |
+| [Caindo.mp4](../../dados/testes/Caindo.mp4) | Registro identificado como queda | Conferir se a gravação mostra o movimento, o painel e o evento; vínculo com resultado do detector não confirmado |
+| [Deitando e Caindo.mp4](../../dados/testes/Deitando%20e%20Caindo.mp4) | Registro identificado como deitar e cair | Conferir os intervalos de cada movimento e seus eventos correspondentes; vínculo com resultado do detector não confirmado |
+
+Fonte: Elaborado pelos autores (2026).
+
+Para usar esses registros como comprovação de um teste específico, documentar o arquivo de vídeo, o intervalo no vídeo, a data e o horário do ensaio, o CSV correspondente, o identificador do cinto e das antenas, a posição de referência, o limiar utilizado e o resultado esperado/observado. Quando houver evento no banco ou no painel, registrar também sua identificação e verificar a sincronização dos horários. Não presumir correspondência com os ensaios RSSI apenas pela proximidade das antenas ou pelos nomes dos arquivos.
+
+No TCC, citar o registro associado ao procedimento e ao resultado discutidos, distinguindo demonstração qualitativa de avaliação quantitativa. Se o vídeo não mostrar simultaneamente o movimento e a saída do sistema, complementar com dados sincronizados; não afirmar que ele comprova reconhecimento correto ou tempo de resposta. Antes de publicar, conferir autorização das pessoas filmadas e remover dados identificáveis, credenciais ou informações sensíveis desnecessárias.
+
+Os links apontam para os arquivos relativos ao manual no repositório. Para acesso local, conservar a estrutura de pastas; alguns leitores de PDF restringem a abertura de arquivos externos. No GitHub, a disponibilidade depende de os vídeos terem sido publicados e de as permissões de acesso permitirem a visualização pela banca.
+
+## Referências
+
+As referências abaixo correspondem às obras citadas neste manual e foram recuperadas da parte escrita de apoio. Os dados bibliográficos devem ser conferidos nas fontes primárias antes da entrega; não se presume essa verificação apenas por constarem no apoio.
+
+BREIMAN, L. Random forests. **Machine Learning**, v. 45, n. 1, p. 5–32, 2001. DOI: 10.1023/A:1010933404324.
+
+GIFFINGER, R.; FERTNER, C.; KRAMAR, H.; KALASEK, R.; PICHLER-MILANOVIĆ, N.; MEIJERS, E. **Smart cities: ranking of European medium-sized cities**. Viena: Centre of Regional Science, Vienna University of Technology, 2007.
+
+GUBBI, J.; BUYYA, R.; MARUSIC, S.; PALANISWAMI, M. Internet of Things (IoT): a vision, architectural elements, and future directions. **Future Generation Computer Systems**, v. 29, n. 7, p. 1645–1660, 2013. DOI: 10.1016/j.future.2013.01.010.
+
+PEDREGOSA, F. et al. Scikit-learn: machine learning in Python. **Journal of Machine Learning Research**, v. 12, p. 2825–2830, 2011.
+
+SUCERQUIA, A.; LÓPEZ, J. D.; VARGAS-BONILLA, J. F. SisFall: a fall and movement dataset. **Sensors**, v. 17, n. 1, art. 198, 2017. DOI: 10.3390/s17010198.
+
+ZANELLA, A.; BUI, N.; CASTELLANI, A.; VANGELISTA, L.; ZORZI, M. Internet of Things for smart cities. **IEEE Internet of Things Journal**, v. 1, n. 1, p. 22–32, 2014. DOI: 10.1109/JIOT.2014.2306328.
