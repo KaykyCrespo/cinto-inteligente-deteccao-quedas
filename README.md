@@ -124,11 +124,14 @@ Estimativa por RSSI das 3 antenas (modelo log-distância), mediana de 4 s, histe
 confirmação de 3 s para troca de quadrante e retenção da última posição válida por até 6 s com
 baixa confiança. O mapa desenha um círculo por antena com o raio estimado.
 
-Limite conhecido e medido (`dados/ensaios_rssi/RESULTADO_1m.txt`): com o cinto na frente do corpo,
-o tronco atenua ~22 dB para a antena às costas e ~12 dB lateralmente, mais do que a sala inteira
-(14 dB em 5 m). Subir as antenas não reduziu esse efeito. A trilateração deve ser lida como
-estimativa de região/quadrante, não de ponto. Próximo passo planejado: estimar posição e orientação
-usando o padrão de sombreamento medido.
+Limite conhecido e medido (`dados/ensaios_rssi/RESULTADO_ENSAIOS_RSSI.txt`): com o cinto na frente do corpo,
+os ensaios antigos de 1 m com antenas altas mostram uma diferença de cerca de 22 a 24,5 dB
+entre a antena de frente e a de costas, compatível com sombreamento, sem isolar outras causas.
+Os novos ensaios de 1, 2, 3, 5 e 7 m não mostram queda monotônica de RSSI com a distância nominal;
+suas condições de montagem e distâncias até cada antena ainda precisam ser confirmadas.
+O relatório reúne estatísticas por antena e origem, agregadas por segundo, sem alterar a calibração.
+A trilateração deve ser lida como estimativa de região/quadrante, não de ponto. Próximo passo:
+repetir os ensaios com geometria e orientação controladas antes de ajustar o modelo.
 
 ## Banco de dados
 

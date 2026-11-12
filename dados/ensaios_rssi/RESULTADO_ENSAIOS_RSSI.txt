@@ -1,0 +1,154 @@
+ENSAIOS RSSI - 1, 2, 3, 5 E 7 METROS
+===================================
+
+Atualizado em: 11/11/2026.
+Este relatorio consolidado abrange os oito CSVs mantidos em dados/ensaios_rssi/,
+com os ensaios de 1, 2, 3, 5 e 7 metros e os testes de alternancia GATT a 1 m.
+
+Arquivos e condicoes
+-------------------
+Ensaios de 04/11/2026, originalmente identificados como ALTA:
+- Teste 1m GATT na Anchor1.csv
+- Teste 1m GATT na Anchor2.csv
+- Teste 1m GATT na Anchor3.csv
+
+O registro anterior descreve as tres antenas a 1 m do cinto, pessoa parada,
+de frente para A1, A2 atras do corpo e A3 lateral. A altura numerica das antenas
+na condicao ALTA nao foi registrada. Os nomes atuais omitem ALTA, mas a condicao
+continua sendo a mesma. A antena indicada no nome recebia GATT; as demais,
+Advertising (campo origem = anuncio nos CSVs antigos).
+
+Ensaios de 11/11/2026:
+- Teste 1m.csv
+- Teste 2m.csv
+- Teste 3m.csv
+- Teste 5m.csv
+- Teste 7m.csv
+
+Nos cinco CSVs novos, A1 recebe GATT e A2/A3 recebem Advertising
+(campo origem = advertising). A distancia do nome e nominal: faltam confirmar
+a antena de referencia, as distancias reais para cada antena, a altura,
+a orientacao do corpo e se houve movimento. Nao assumir que todas as antenas
+estavam a essa mesma distancia. Isso limita a comparacao com os ensaios antigos.
+
+Os tres CSVs BAIXO foram removidos conforme a organizacao aprovada. A comparacao
+ALTA x BAIXO nao integra esta analise. Os oito CSVs mantidos foram apenas
+renomeados; seus hashes SHA256 permaneceram iguais. Os videos nao foram alterados
+e nao foram utilizados como evidencia das condicoes dos CSVs nesta analise.
+
+Metodo de calculo
+-----------------
+- Leitura estruturada por csv.DictReader, timestamp por datetime.fromisoformat.
+- RSSI valido: valor finito em [-127, 0) dBm. Nenhuma linha invalida encontrada.
+- Duracao: diferenca entre o ultimo e o primeiro timestamp valido do arquivo.
+- Separar os dados por id_antena e origem; anuncio equivale a Advertising
+  somente na apresentacao dos resultados, sem alterar os CSVs.
+- Em cada segundo civil (timestamp sem microssegundos), calcular a mediana
+  das linhas RSSI do grupo. Cada segundo com dados tem peso igual.
+- M: mediana dessas medianas por segundo, em dBm.
+- DP: desvio padrao amostral das medianas por segundo, em dB.
+- S: quantidade de segundos com dados no grupo; lacunas nao sao preenchidas.
+- L: quantidade de linhas RSSI validas; L/s = L / duracao total do arquivo.
+
+GATT repete RSSI em linhas de sensores. L/s mede registros exportados, NAO a
+frequencia de medicoes RSSI independentes. A agregacao reduz esse peso, mas
+nao elimina a autocorrelacao temporal nem permite distinguir todas as leituras
+novas dos valores reutilizados. DP descreve variacao temporal, nao erro padrao
+ou intervalo de confianca. Nenhum corte de aquecimento foi aplicado.
+Nao comparar diretamente estes numeros com estatisticas antigas por linha.
+
+Inventario e duracao
+-------------------
+Arquivo                        | Inicio (hora local do CSV) | Duracao (s) | Linhas
+Teste 1m GATT na Anchor1.csv    | 04/11/2026 20:23:53.388    | 199.040     | 10959
+Teste 1m GATT na Anchor2.csv    | 04/11/2026 20:34:25.672    | 188.950     | 18961
+Teste 1m GATT na Anchor3.csv    | 04/11/2026 20:40:36.030    | 259.842     | 13272
+Teste 1m.csv                   | 11/11/2026 17:24:09.120    | 139.477     | 14341
+Teste 2m.csv                   | 11/11/2026 17:30:20.907    | 139.489     | 14223
+Teste 3m.csv                   | 11/11/2026 17:35:40.037    | 136.543     | 14010
+Teste 5m.csv                   | 11/11/2026 17:40:01.235    | 200.344     | 20578
+Teste 7m.csv                   | 11/11/2026 17:44:34.184    | 127.607     | 13141
+
+Resultados antigos mantidos - 1 m, antenas altas
+-----------------------------------------------
+Arquivo (GATT na) | Antena | Origem      | L     | L/s   | S   | M      | DP
+Anchor1          | A1     | GATT        | 10506 | 52.78 | 114 | -63.50 | 8.69
+Anchor1          | A2     | Advertising | 208   | 1.05  | 89  | -88.00 | 4.01
+Anchor1          | A3     | Advertising | 245   | 1.23  | 97  | -83.00 | 6.05
+Anchor2          | A1     | Advertising | 289   | 1.53  | 108 | -65.00 | 4.64
+Anchor2          | A2     | GATT        | 18383 | 97.29 | 187 | -87.00 | 3.85
+Anchor2          | A3     | Advertising | 289   | 1.53  | 115 | -71.00 | 3.81
+Anchor3          | A1     | Advertising | 306   | 1.18  | 98  | -65.00 | 4.30
+Anchor3          | A2     | Advertising | 262   | 1.01  | 111 | -89.00 | 3.89
+Anchor3          | A3     | GATT        | 12704 | 48.89 | 213 | -74.00 | 4.22
+
+Resultados novos - distancias nominais
+--------------------------------------
+Distancia | Antena | Origem      | L     | L/s    | S   | M      | DP
+1 m       | A1     | GATT        | 13960 | 100.09 | 140 | -75.00 | 5.57
+1 m       | A2     | Advertising | 198   | 1.42   | 78  | -80.00 | 3.91
+1 m       | A3     | Advertising | 183   | 1.31   | 72  | -84.50 | 4.10
+2 m       | A1     | GATT        | 13958 | 100.07 | 141 | -79.00 | 2.78
+2 m       | A2     | Advertising | 108   | 0.77   | 61  | -80.00 | 4.81
+2 m       | A3     | Advertising | 157   | 1.13   | 68  | -90.25 | 4.25
+3 m       | A1     | GATT        | 13700 | 100.33 | 137 | -81.00 | 3.74
+3 m       | A2     | Advertising | 156   | 1.14   | 68  | -81.75 | 3.28
+3 m       | A3     | Advertising | 154   | 1.13   | 67  | -81.00 | 4.76
+5 m       | A1     | GATT        | 20100 | 100.33 | 201 | -80.00 | 3.56
+5 m       | A2     | Advertising | 233   | 1.16   | 109 | -88.50 | 4.13
+5 m       | A3     | Advertising | 245   | 1.22   | 107 | -85.50 | 2.61
+7 m       | A1     | GATT        | 12826 | 100.51 | 128 | -78.00 | 2.34
+7 m       | A2     | Advertising | 156   | 1.22   | 68  | -82.75 | 1.98
+7 m       | A3     | Advertising | 159   | 1.25   | 69  | -86.50 | 2.60
+
+Comparacao e conclusoes
+----------------------
+1. Nos ensaios antigos, A1 varia de -63.50 a -65 dBm; A2, de -87 a -89 dBm.
+   A diferenca A1-A2 e 24.50, 22 e 24 dB em cada arquivo. Isso e compativel
+   com sombreamento do corpo descrito no registro de montagem, mas nao isola
+   esse efeito de diferencas entre antenas ou do ambiente.
+2. A3 varia de -83 a -71 dBm entre os ensaios antigos. Essa variacao impede
+   usar uma atenuacao lateral fixa como se fosse uma constante comprovada.
+3. A1 no novo teste de 1 m tem mediana -75 dBm, 11.50 dB abaixo do ensaio
+   antigo GATT na Anchor1. A2 e A3 tambem mudam: nao juntar as duas campanhas
+   numa unica calibracao sem confirmar as condicoes de montagem.
+4. Na campanha nova, A1 cai de -75 (1 m) para -81 (3 m), mas sobe para
+   -80 (5 m) e -78 (7 m). A2 e A3 tambem nao seguem uma queda monotona.
+   Os dados complementam a avaliacao de estabilidade, mas nao comprovam uma
+   relacao simples e confiavel entre RSSI e distancia.
+5. Advertising registra cerca de 0.77 a 1.42 linhas/s nos ensaios novos,
+   com segundos sem dados. GATT exporta cerca de 100 linhas/s de sensores,
+   nao 100 medicoes RSSI independentes/s. Nao estimar percentual de pacotes
+   perdidos apenas com essas taxas.
+6. Os novos ensaios nao alternam o modo na mesma antena: A1 sempre usa GATT.
+   Nao e possivel concluir equivalencia GATT/Advertising ou calibrar offset
+   comparando antenas distintas. Nos antigos, os modos alternam, mas em
+   gravacoes separadas e com variacao temporal; o offset tambem nao foi validado.
+
+Avaliacao exploratoria da calibracao
+-----------------------------------
+Modelo: M(d) = a - 10*n*log10(d), usando uma mediana M por arquivo novo,
+as cinco distancias NOMINAIS e ajuste linear por minimos quadrados.
+R2 = 1 - soma dos residuos quadrados / soma dos desvios quadrados de M.
+Cada arquivo tem peso igual; os ensaios antigos nao entram nesse ajuste.
+
+Antena | Origem      | Pontos | a (dBm) | n     | R2
+A1     | GATT        | 5      | -76.78  | 0.393 | 0.322
+A2     | Advertising | 5      | -79.39  | 0.692 | 0.432
+A3     | Advertising | 5      | -85.54  | 0.003 | 0.000
+
+Esses valores sao apenas diagnosticos, NAO parametros recomendados. Mesmo
+para A1, o ajuste explica pouco da variacao; para A2/A3, a distancia real
+ate cada antena nem sequer foi confirmada. Nao utilizar esses expoentes
+na estimativa de posicao nem tratar a como RSSI de referencia validado a 1 m.
+Nenhum parametro de localizacao ou firmware foi alterado.
+
+Proximos ensaios recomendados
+----------------------------
+- Registrar altura, posicao de cada antena, distancia real cinto-antena,
+  orientacao do corpo, movimento, obstaculos e modo de recepcao.
+- Repetir 1, 2, 3, 5 e 7 m com uma antena de referencia, altura e orientacao
+  fixas e linha de visada; fazer repeticoes e variar a ordem das distancias.
+- Medir orientacoes frente/lado/costas separadamente, na mesma geometria.
+- Alternar GATT/Advertising na mesma antena sob condicoes equivalentes.
+- Somente depois avaliar RSSI de referencia, expoente n e offset por antena.
