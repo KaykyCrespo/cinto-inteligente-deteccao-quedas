@@ -878,7 +878,9 @@ python scripts/treino_sisfall.py --sisfall dados/SISFALL/SisFall_dataset --saida
 
 ### 4.4 Resultados e métricas
 
-As métricas são calculadas **por registro**: um registro de queda conta como detectado se alguma janela passar do limiar; um registro de atividade conta como falso alarme se alguma janela passar do limiar. O relatório completo está em `modelos/resultado_treino_mvp_8g.txt`.
+As métricas são calculadas **por ensaio**, com validação cruzada por voluntário (GroupKFold, 5 folds), mantendo os voluntários de teste separados dos de treinamento. Cada arquivo de gravação do SisFall corresponde a um ensaio. Um ensaio é classificado como queda se ao menos uma de suas janelas tiver probabilidade maior ou igual ao limiar: isso conta como verdadeiro positivo em um ensaio de queda e como falso positivo em um ensaio de atividade sem queda. O relatório completo está em `modelos/resultado_treino_mvp_8g.txt`.
+
+Esse critério considera a maior probabilidade ao longo de todo o ensaio. Portanto, não comprova que o alarme ocorreu no instante da queda, não mede o atraso de detecção e não representa uma taxa de falsos alarmes por hora de uso contínuo. As métricas apresentadas são calculadas com as contagens agregadas dos folds, não pela média simples das métricas de cada fold.
 
 **Matriz de confusão (validação cruzada por voluntário, limiar 0,50):**
 
@@ -901,7 +903,7 @@ Fonte: Elaborado pelos autores (2026).
 Fonte: Elaborado pelos autores (2026).
 
 
-em que VP (verdadeiros positivos) são quedas detectadas como queda; FN (falsos negativos) são quedas não detectadas; FP (falsos positivos) são atividades normais que geraram alarme; VN (verdadeiros negativos) são atividades normais sem alarme; P é a precisão; R é a revocação; e total é a soma VP + FN + FP + VN (4.505 registros).
+em que VP (verdadeiros positivos) são ensaios de queda classificados como queda; FN (falsos negativos) são ensaios de queda não detectados; FP (falsos positivos) são ensaios de atividades sem queda classificados como queda; VN (verdadeiros negativos) são ensaios de atividades sem queda corretamente classificados; P é a precisão; R é a revocação; e total é a soma VP + FN + FP + VN (4.505 ensaios).
 
 **Sensibilidade por fold:** 96,8% · 98,1% · 100% · 100% · 99,5%. **Especificidade por fold:** 96,3% · 94,8% · 97,4% · 94,2% · 93,6%.
 
@@ -921,6 +923,7 @@ Fonte: Elaborado pelos autores (2026).
 
 **Limitações conhecidas:**
 
+- A importância dos atributos mostrada em `docs/esquemas/metricas_modelo.png` vem do modelo final treinado em todos os dados, pela redução média de impureza. Não é uma métrica de validação cruzada nem demonstra efeito causal; os valores foram arredondados no relatório e sua soma apresentada pode diferir de 1.
 - A maior fonte de falsos alarmes é a atividade **D11** (tentar levantar e desabar na cadeira: 53/190), seguida de D06 (subir e descer escadas rápido), D14 (mudar de posição deitado), D18 (tropeçar) e D19 (saltar). São movimentos de fato parecidos com uma queda.
 - As quedas do SisFall foram simuladas, em sua maioria por adultos jovens; o desempenho com idosos reais em uso contínuo não foi medido.
 - O modelo não aprende em operação; incorporar novos dados exige retreino.
