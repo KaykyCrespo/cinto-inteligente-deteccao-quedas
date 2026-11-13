@@ -59,7 +59,7 @@ Em seguida, a hipótese com os números em destaque: **98,8% de 1.798 quedas** e
 **Na tela:**
 
 - `docs/esquemas/arquitetura_camadas.png`, em tela cheia. Use zoom ou um destaque em cada camada enquanto ela é citada.
-- No fim, por 5 segundos, o fluxograma `docs/IMAGENS/FLUXOGRAMA.jpeg`.
+- No fim, por 5 segundos, o fluxograma `docs/IMAGENS/Fluxograma Processo.jpeg`.
 
 ---
 
@@ -245,7 +245,7 @@ Ficam em `docs/esquemas/` (PNG para slides e SVG para ampliar sem perder qualida
 | Bloco | Arquivo | Conteúdo |
 |---|---|---|
 | 3 | `arquitetura_camadas.png` | Arquitetura em 5 camadas |
-| 3 | `IMAGENS/FLUXOGRAMA.jpeg` | Fluxo de um ciclo de leitura até o alerta |
+| 3 | `IMAGENS/Fluxograma Processo.jpeg` | Fluxo de um ciclo de leitura até o alerta |
 | 4 | Esquemas elétricos do cinto e da antena (em elaboração) | Ligações dos módulos |
 | 5 e 6 | `pipeline_ia.png` | Pipeline de IA: treino offline e operação em tempo real |
 | 6 | `matriz_confusao.png` | Matriz de confusão (VP, FN, FP, VN) |

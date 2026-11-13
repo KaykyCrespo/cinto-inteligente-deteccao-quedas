@@ -1,19 +1,19 @@
 Categoria;Componente_ou_recurso;Unidade;Classificacao;Quantidade_minima_proposta;Quantidade_ampliada_BOM;Valor_unitario_BRL;Subtotal_minimo_BRL;Subtotal_ampliado_BRL;Fonte_preco;Data_consulta;Base_quantidade_e_observacoes
-Hardware;ESP32-C3 Super Mini;placa;Essencial;1;1;;;;;;Manual quadro 2 - sem preco comprovado
-Hardware;ESP32 DevKit V1;placa;Essencial para comunicacao - duas unidades adicionais complementares;1;3;;;;;;Manual quadro 3 - configuracao minima ainda nao validada
-Hardware;MPU6050 GY-521;modulo;Essencial;1;1;;;;;;Manual quadro 2 - aquisicao inercial
-Hardware;AD8232;modulo;Complementar experimental;0;1;;;;;;Manual quadro 2 - ausente na referencia minima proposta
-Hardware;Cabo de eletrodos P2;conjunto;Complementar experimental;0;1;;;;;;Manual quadro 2 - evitar dupla contagem se incluso no kit AD8232
-Consumivel;Eletrodos ECG;unidade;Complementar experimental;0;3;;;;;;Manual quadro 2 - custo recorrente por uso a levantar
-Hardware;Bateria 18650 de 1000 mAh;celula;Essencial na alimentacao portatil adotada;3;5;;;;;;Duas no cinto e uma por antena segundo BOM - capacidade real a verificar
-Hardware;TP4056 com protecao;modulo;Essencial na alimentacao adotada;2;4;;;;;;Um no cinto e um por antena - modelo e protecao a confirmar
-Hardware;MT3608;modulo;Essencial na alimentacao adotada;2;4;;;;;;Um no cinto e um por antena - nao pressupor fonte alternativa
-Hardware;Chave gangorra;unidade;Essencial;2;4;;;;;;Uma por dispositivo - posicao real no circuito pendente
-Encapsulamento;Case Cinto;conjunto base e tampa;Essencial;1;1;;;;;;Projeto docs/impressao_3d/Case Cinto.3mf - evitar duplicar custos de material e impressao
-Encapsulamento;Case Antena;conjunto base e tampa;Essencial na referencia proposta;1;3;;;;;;Projeto docs/impressao_3d/Case Antena.3mf
-Encapsulamento;Insertos e parafusos do cinto;conjunto;Essencial na montagem adotada;1;1;;;;;;BOM indica 2 a 4 pares por conjunto - confirmar antes da cotacao
-Encapsulamento;Insertos e parafusos por antena;conjunto;Essencial na montagem adotada;1;3;;;;;;BOM indica dois pares por conjunto
-Montagem;Fios e conexoes;metro ou conjunto;Essencial;;;;;;;;Quantidade e comprimento nao documentados - nao tratar como zero
+Hardware;ESP32-C3 Super Mini;placa;Essencial;1;1;55,00;55,00;55,00;Informado pela equipe;;Manual quadro 2
+Hardware;ESP32 DevKit V1;placa;Essencial para comunicacao - duas unidades adicionais complementares;1;3;49,99;49,99;149,97;Informado pela equipe;;Manual quadro 3 - configuracao minima ainda nao validada
+Hardware;MPU6050 GY-521;modulo;Essencial;1;1;30,00;30,00;30,00;Informado pela equipe;;Manual quadro 2 - aquisicao inercial
+Hardware;AD8232;modulo;Complementar experimental;0;1;60,00;0,00;60,00;Informado pela equipe;;Manual quadro 2 - ausente na referencia minima - valor inclui cabo e eletrodos conforme equipe
+Hardware;Cabo de eletrodos P2;conjunto;Complementar experimental;0;1;;;;;;Incluso no valor do AD8232 conforme equipe
+Consumivel;Eletrodos ECG;unidade;Complementar experimental;0;3;;;;;;Primeiro conjunto incluso no valor do AD8232 conforme equipe - reposicao por uso nao informada
+Hardware;Bateria 18650 de 1000 mAh;celula;Essencial na alimentacao portatil adotada;3;5;12,90;38,70;64,50;Informado pela equipe;;Duas no cinto e uma por antena segundo BOM - capacidade real a verificar
+Hardware;TP4056 com protecao;modulo;Essencial na alimentacao adotada;2;4;7,90;15,80;31,60;Informado pela equipe;;Um no cinto e um por antena - modelo e protecao a confirmar
+Hardware;MT3608;modulo;Essencial na alimentacao adotada;2;4;10,00;20,00;40,00;Informado pela equipe;;Um no cinto e um por antena
+Hardware;Chave gangorra;unidade;Essencial;2;4;1,90;3,80;7,60;Informado pela equipe;;Uma por dispositivo - entre TP4056 e MT3608 conforme equipe
+Encapsulamento;Case Cinto;conjunto base e tampa;Essencial;1;1;20,00;20,00;20,00;Informado pela equipe;;Projeto docs/impressao_3d/Case Cinto.3mf - valor inclui material de impressao conforme equipe
+Encapsulamento;Case Antena;conjunto base e tampa;Essencial na referencia proposta;1;3;10,00;10,00;30,00;Informado pela equipe;;Projeto docs/impressao_3d/Case Antena.3mf - valor inclui material de impressao conforme equipe
+Encapsulamento;Parafusos do cinto;parafuso;Essencial na montagem adotada;3;3;1,00;3,00;3,00;Informado pela equipe;;Equipe informa R$ 5,00 por cinco parafusos - tres no cinto - confirmar se inclui os insertos
+Encapsulamento;Parafusos das antenas;parafuso;Essencial na montagem adotada;2;6;1,00;2,00;6,00;Informado pela equipe;;Dois por antena - confirmar se inclui os insertos
+Montagem;Fios e conexoes;conjunto de 2 m;Essencial;1;;2,50;2,50;;Informado pela equipe;;Equipe informa que 2 m atendem um cinto e uma antena - quantidade da configuracao ampliada nao informada
 Hardware;LED indicador de eletrodo;unidade;Complementar opcional;0;;;;;;;BOM opcional - quantidade instalada na configuracao ampliada nao confirmada
 Hardware;Resistor do LED de 330 ohms;unidade;Complementar opcional;0;;;;;;;Associado ao LED - quantidade instalada nao confirmada
 Hardware;Capacitor de 470 uF;unidade;Protecao de alimentacao a avaliar;;;;;;;;Recomendado no manual - confirmar quantidade e necessidade sem retirar por economia
@@ -22,13 +22,13 @@ Infraestrutura;Computador central;equipamento;Essencial na arquitetura atual;1;1
 Infraestrutura;Roteador Wi-Fi 2.4 GHz;equipamento;Essencial na arquitetura atual;1;1;;;;;;Levantar aquisicao ou custo atribuivel ao uso de infraestrutura existente
 Infraestrutura;Cabo USB-C de dados;unidade;Essencial para programacao;1;1;;;;;;Acessorio reutilizavel - confirmar disponibilidade e compartilhamento
 Infraestrutura;Cabo Micro-USB de dados;unidade;Essencial para programacao;1;1;;;;;;Um cabo reutilizavel para programar antenas - nao um por placa automaticamente
-Infraestrutura;Fonte USB para recarga;unidade;Essencial;;;;;;;;Quantidade capacidade e certificacao a verificar - nao omitir por nao constar da BOM
-Infraestrutura;Acesso a internet;periodo;Essencial se alerta remoto por Telegram for requisito;;;;;;;;Separar custo incremental e acesso existente - alerta remoto depende de servico externo
+Infraestrutura;Fonte USB para recarga;unidade;Nao inclusa - usuario utiliza carregador de celular proprio;0;0;;;;;;Decisao da equipe - fora do custo da solucao
+Infraestrutura;Acesso a internet;periodo;Essencial - alerta remoto por Telegram definido como requisito pela equipe;;;;;;;;Separar custo incremental e acesso existente - alerta remoto depende de servico externo
 Operacao;Energia eletrica;periodo;Essencial;;;;;;;;Medir consumo de cinto antenas computador e roteador e definir tarifa
 Reproducao;Montagem e soldagem;hora;Essencial;;;;;;;;Registrar tempo e valor da mao de obra - nao confundir voluntariado com custo nulo de reproducao
 Reproducao;Programacao e configuracao;hora;Essencial;;;;;;;;Registrar tempo de configuracao das placas broker e painel
-Reproducao;Impressao 3D;hora ou servico;Essencial na solucao de case adotada;;;;;;;;Contabilizar somente se nao incluso no preco dos cases
-Reproducao;Filamento e perdas de impressao;grama;Essencial na impressao adotada;;;;;;;;Contabilizar somente se nao incluso no preco dos cases
+Reproducao;Impressao 3D;hora ou servico;Essencial na solucao de case adotada;;;;;;;;Considerado incluso no preco dos cases conforme equipe
+Reproducao;Filamento e perdas de impressao;grama;Essencial na impressao adotada;;;;;;;;Incluso no preco dos cases conforme equipe
 Reproducao;Frete e tributos;pedido;Custo de aquisicao;;;;;;;;Distinguir compra do prototipo de compra para reproducao
 Manutencao;Substituicao de baterias e componentes;periodo;Essencial;;;;;;;;Definir vida util e custos com base em evidencias
 Manutencao;Higienizacao e consumiveis;periodo;Essencial;;;;;;;;Definir materiais quantidade e frequencia sem inventar valores

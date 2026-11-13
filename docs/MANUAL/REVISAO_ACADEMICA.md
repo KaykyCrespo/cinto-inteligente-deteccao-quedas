@@ -1,6 +1,6 @@
 # Relatorio de revisao academica do manual
 
-Data: 12/11/2026.
+Data: 12/11/2026; atualizado em 13/11/2026.
 
 ## Escopo e documentos
 
@@ -32,6 +32,8 @@ O sufixo `_Revisado` foi utilizado porque a exportacao para o DOCX original enco
 **Revisado:** aviso na Secao 2.3 exige confirmar a montagem fisica e alinhar as representacoes antes da reproducao por terceiros; explica que uma chave depois do MT3608 pode deixar o conversor alimentado.
 
 **Justificativa:** nao escolher silenciosamente uma ligacao sem evidencia da montagem real. A divergencia nao foi corrigida nos desenhos.
+
+**Atualizacao de 13/11/2026:** a equipe definiu que a chave fica entre o TP4056 e o MT3608, como nas tabelas e instrucoes, e o aviso da Secao 2.3 foi retirado do manual por sua decisao. As Figuras 5 e 6 (esquemas do Fritzing) ainda mostram a chave depois do MT3608 e precisam ser redesenhadas; a pendencia segue na Secao 7 de `docs/PARTE_ESCRITA_FINAL.md`.
 
 ### 3. Processamento local, notificacao e privacidade
 
@@ -97,6 +99,8 @@ O sufixo `_Revisado` foi utilizado porque a exportacao para o DOCX original enco
 
 **Justificativa:** nao inventar versoes, registros ou metodos de quantificacao e nao eliminar silenciosamente informacoes declaradas pela equipe.
 
+**Atualizacao de 13/11/2026:** por decisao da equipe, a Secao 4.5 e seu quadro foram retirados do manual. A declaracao passou para o Apendice B, em `docs/PARTE_ESCRITA_FINAL.md`, com o mesmo conteudo e as mesmas pendencias de conferencia. A remissao ao Apendice B ficava na secao de pendencias, retirada no mesmo dia (item 12); o manual nao menciona mais a declaracao. O apoio `Video e Manuais.docx` pede a declaracao na Secao 4 do manual; falta confirmar com o orientador se a declaracao apenas no Apendice B atende a essa exigencia.
+
 ### 11. Citacoes e referencias
 
 **Original:** obras citadas sem lista bibliografica no proprio manual.
@@ -111,13 +115,15 @@ O sufixo `_Revisado` foi utilizado porque a exportacao para o DOCX original enco
 
 **Revisado:** sumario inclui subsecoes, contagem exclui a capa e a orientacao de atendimento foi identificada como 5.2.1. Criada a Secao 5.5 para pendencias antes da entrega.
 
+**Atualizacao de 13/11/2026:** por decisao da equipe, a secao de pendencias foi retirada do manual e a de registros audiovisuais passou de 5.6 para 5.5. As pendencias continuam neste relatorio e na Secao 7 de `docs/PARTE_ESCRITA_FINAL.md`; o aviso de validacao eletrica da Secao 2.3 tambem foi retirado (item 2).
+
 **Justificativa:** manter correspondencia entre hierarquia, navegacao e paginacao sem alterar a estrutura institucional de cinco secoes.
 
 ### 13. Figuras, tabelas e quadros
 
 **Original:** fontes das figuras herdavam 12 pt; 32 tabelas sem identificacao sequencial.
 
-**Revisado:** 16 figuras com a frase de fonte aprovada em 10 pt e espacamento simples; imagem mantida com sua fonte. Conteudos identificados como 22 quadros descritivos e 10 tabelas quantitativas. O gerador diferencia bordas dos dois tipos de apresentacao.
+**Revisado:** figuras com a frase de fonte aprovada em 10 pt e espacamento simples; imagem mantida com sua fonte. Conteudos identificados como quadros descritivos e 10 tabelas quantitativas; as contagens atuais de figuras e quadros estao na validacao final. O gerador diferencia bordas dos dois tipos de apresentacao.
 
 **Justificativa:** melhorar rastreabilidade e padronizacao, sem modificar valores ou excluir figuras. A configuracao final deve ser confrontada com o manual institucional.
 
@@ -133,25 +139,34 @@ O sufixo `_Revisado` foi utilizado porque a exportacao para o DOCX original enco
 
 **Original:** os projetos eram referidos em `impressao_3d/` na raiz e os videos de `dados/testes/` nao tinham uma secao de rastreabilidade no manual.
 
-**Revisado:** caminhos atualizados para `docs/impressao_3d/Case Cinto.3mf` e `docs/impressao_3d/Case Antena.3mf`, com links relativos. A Secao 5.6 e o Quadro 23 identificam os quatro videos disponiveis e os dados necessarios para associar cada registro a um ensaio. O README tambem foi atualizado.
+**Revisado:** caminhos atualizados para `docs/impressao_3d/Case Cinto.3mf` e `docs/impressao_3d/Case Antena.3mf`, com links relativos. A secao de registros audiovisuais (5.5 apos a retirada das pendencias) e o Quadro 22 identificam os quatro videos disponiveis e os dados necessarios para associar cada registro a um ensaio. O README tambem foi atualizado.
 
 **Justificativa:** videos podem complementar a evidencia visual dos procedimentos, mas seu nome ou existencia nao comprovam classificacao correta, latencia ou erro de localizacao. O conteudo e a correspondencia com CSVs, horarios e eventos ainda precisam ser conferidos. Os links MP4 foram preservados como arquivos externos no PDF; alguns leitores restringem sua abertura. O acesso no GitHub depende de publicacao e permissoes, nao verificadas nesta revisao.
+
+### 16. Fotografias da montagem e dos cases
+
+**Original:** o manual trazia duas fotografias na Secao 2.3, da montagem do circuito e da medicao com multimetro. Em 13/11/2026 foram acrescentadas cinco fotografias do case real do cinto.
+
+**Revisado (13/11/2026):** por decisao da equipe, as sete fotografias foram retiradas do manual, com o paragrafo que comentava a medicao com multimetro. Elas e as fotografias do case real da antena ficam reservadas para a parte escrita; os arquivos continuam em `docs/esquemas/esquemas eletricos/`, `docs/IMAGENS/Case Cinto/` e `docs/IMAGENS/Case Antena/`. O manual ficou com 14 figuras: arquitetura, fluxograma, desenhos dos cases (3 e 4), esquemas eletricos (5 e 6), painel e Telegram (7 a 14). As remissoes no texto foram ajustadas e os caminhos das tres imagens movidas em `docs/IMAGENS` foram corrigidos.
+
+**Justificativa:** o manual mantem os desenhos e esquemas necessarios a montagem; os registros fotograficos da unidade construida passam a compor a parte escrita. Ao usa-los, observar que o visor do multimetro nao esta legivel na foto e que as fotos dos cases nao permitem conferir a posicao eletrica da chave em relacao ao MT3608.
 
 ## Validacao final
 
 - Markdown integral processado na verificacao de estrutura e integridade.
-- PDF final com 63 paginas; DOCX com 33 tabelas e 16 imagens.
+- PDF final com 59 paginas; DOCX com 32 tabelas e 14 imagens.
 - Cinco secoes tecnicas preservadas, com referencias como elemento pos-textual.
-- Sequencias de 16 figuras, 23 quadros e 10 tabelas sem lacunas.
-- Presenca das subsecoes 3.2.1, 3.3.4, 5.2.1, 5.5 e 5.6 no sumario verificada.
+- Sequencias de 14 figuras, 22 quadros e 10 tabelas sem lacunas.
+- Presenca das subsecoes 3.2.1, 4.4, 5.2.1 e 5.5 no sumario verificada; as Secoes 4.5 e 5.6 nao existem mais.
+- Nenhuma mencao a ferramentas de IA generativa nem ao Apendice B no PDF do manual.
 - Nove links relativos para pastas, projetos de impressao e videos conferidos contra caminhos locais existentes; quatro links MP4 e dois links 3MF preservados no DOCX.
 - Inicio textual na pagina fisica 5, com numero exibido 4: a capa nao integra a contagem.
 - Margens A4 verificadas: superior/esquerda de 3 cm e inferior/direita de 2 cm.
-- Fontes das 16 figuras em 10 pt, espacamento simples e abaixo das imagens, na mesma pagina.
+- Fontes das 14 figuras em 10 pt, espacamento simples e abaixo das imagens, na mesma pagina.
 - Referencias com espacamento simples, alinhamento a esquerda e sem recuo de primeira linha.
 - Valores de sensibilidade, precisao, F1, especificidade e acuracia preservados: 98,8%, 93,3%, 96,0%, 95,3% e 96,7%.
 - Estimativas de autonomia preservadas e identificadas como condicionais.
-- Nao houve retreinamento, recalibracao, alteracao de firmware ou commit nesta revisao.
+- Nao houve retreinamento, recalibracao ou alteracao de firmware nesta revisao.
 
 ## Pendencias antes da banca
 

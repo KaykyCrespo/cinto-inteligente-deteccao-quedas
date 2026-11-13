@@ -84,7 +84,7 @@ def preparar_markdown(capa=True):
     texto = re.sub(r"(?m)^(### 2\.3 )", lambda m: QUEBRA + m.group(1), texto)
     texto = re.sub(r"(?m)^(## Referências)", lambda m: QUEBRA + m.group(1), texto)
     if capa:
-        texto = re.sub(r"(?m)^(\*\*Figura 11 –)", lambda m: QUEBRA + m.group(1), texto)
+        texto = re.sub(r"(?m)^(\*\*Figura 9 –)", lambda m: QUEBRA + m.group(1), texto)
     return texto
 
 

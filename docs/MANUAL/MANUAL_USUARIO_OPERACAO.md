@@ -66,7 +66,7 @@ A Figura 2 mostra o caminho de um ciclo de leitura, do sensor no cinto até o al
 
 **Figura 2 – Fluxograma do funcionamento completo do sistema**
 
-![Fluxograma do sistema](IMAGENS/FLUXOGRAMA.jpeg)
+![Fluxograma do sistema](IMAGENS/Fluxograma%20Processo.jpeg)
 
 Fonte das figuras: elaborado pelos autores (2026).
 
@@ -193,17 +193,15 @@ Fonte: Elaborado pelos autores (2026).
 
 Os esquemas elétricos mostram as conexões de alimentação e de sinal dos dois dispositivos. Em ambos, a bateria recarregável é ligada ao módulo TP4056, responsável pela carga, e ao conversor MT3608, que fornece 5 V ao circuito; a chave gangorra permite ligar e desligar o conjunto. No cinto, o ESP32-C3 recebe os dados de movimento do MPU6050 pela comunicação I²C e o sinal cardíaco do AD8232, que também indica quando os eletrodos estão soltos. Na antena, o ESP32 DevKit V1 funciona como unidade de comunicação e não possui sensores conectados. Consulte as tabelas de ligações desta seção para conferir os pinos e sinais.
 
-> **Pendência de validação elétrica:** nas Figuras 5 e 6, a chave gangorra aparece após o MT3608; nas tabelas da Seção 2.2 e nos passos da Seção 2.5, aparece antes do conversor. A equipe deve confirmar a ligação física e alinhar desenhos e instruções antes de permitir sua reprodução por terceiros. Se a chave estiver após o MT3608, o conversor poderá permanecer alimentado com a chave desligada. Não usar as representações divergentes como instrução final de montagem nem presumir isolamento entre USB e bateria sem verificar o circuito real.
-
 **Figura 3 – Disposição dos módulos no case do cinto**
 
-![Case do cinto](IMAGENS/CASE%20CINTO.png)
+![Case do cinto](IMAGENS/Case%20Cinto/Imagem%20Cinto.png)
 
 Fonte das figuras: elaborado pelos autores (2026).
 
 **Figura 4 – Disposição dos módulos no case da antena**
 
-![Case da antena](IMAGENS/CASE%20ANTENA.png)
+![Case da antena](IMAGENS/Case%20Antena/Imagem%20Antena.png)
 
 Fonte das figuras: elaborado pelos autores (2026).
 
@@ -218,20 +216,6 @@ Fonte das figuras: elaborado pelos autores (2026).
 ![Esquema elétrico da antena com ESP32 DevKit V1 e circuito de alimentação](../esquemas/esquemas%20eletricos/Esquema%20El%C3%A9trico%20Antena.jpeg)
 
 Fonte das figuras: elaborado pelos autores (2026).
-
-**Figura 7 – Registro da montagem do circuito**
-
-![Montagem dos componentes e conexões do circuito](../esquemas/esquemas%20eletricos/Foto%20Montando.jpeg)
-
-Fonte das figuras: elaborado pelos autores (2026).
-
-**Figura 8 – Verificação das tensões com multímetro**
-
-![Uso do multímetro para verificar as tensões do circuito](../esquemas/esquemas%20eletricos/Foto%20Mult%C3%ADmetro.jpeg)
-
-Fonte das figuras: elaborado pelos autores (2026).
-
-A Figura 8 registra o uso do multímetro durante a verificação elétrica. Compare as leituras com as tensões nominais da Seção 2.4, incluindo 5,0 V na saída do MT3608 e 3,3 V no trilho que alimenta os sensores. O visor não está legível na foto; portanto, ela documenta o procedimento de medição, mas não permite confirmar numericamente os valores obtidos.
 
 Os arquivos editáveis dos esquemas (`cinto.fzz` e `antena.fzz`) e o instalador do Fritzing para Windows (`Instalador - fritzing - win64.msi`) estão na pasta `docs/esquemas/esquemas eletricos`. Abra os arquivos `.fzz` no Fritzing para consultar ou editar os diagramas.
 
@@ -554,7 +538,7 @@ em que $\Delta T$ é o aumento de temperatura acima do ambiente (°C), $P$ é a 
 
 ### 3.1 Requisitos mínimos
 
-**Obtenção do projeto:** o material do sistema está organizado no repositório GitHub <https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas>: código do painel e do backend, firmware do cinto e das antenas, bibliotecas Arduino usadas, modelo de IA treinado, projetos imprimíveis dos cases em `docs/impressao_3d/Case Cinto.3mf` e `docs/impressao_3d/Case Antena.3mf`, documentação e o arquivo `requirements.txt` com as dependências Python. Os registros audiovisuais de testes estão em `dados/testes/` e são apresentados na Seção 5.6. Os arquivos adicionados localmente só estarão acessíveis à banca no GitHub após sua publicação. Para baixar os projetos `.3mf` individualmente, abra [docs/impressao_3d](../impressao_3d/). Como alternativa, use **Code → Download ZIP** e localize essa pasta após descompactar, ou clone o repositório com Git:
+**Obtenção do projeto:** o material do sistema está organizado no repositório GitHub <https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas>: código do painel e do backend, firmware do cinto e das antenas, bibliotecas Arduino usadas, modelo de IA treinado, projetos imprimíveis dos cases em `docs/impressao_3d/Case Cinto.3mf` e `docs/impressao_3d/Case Antena.3mf`, documentação e o arquivo `requirements.txt` com as dependências Python. Os registros audiovisuais de testes estão em `dados/testes/` e são apresentados na Seção 5.5. Os arquivos adicionados localmente só estarão acessíveis à banca no GitHub após sua publicação. Para baixar os projetos `.3mf` individualmente, abra [docs/impressao_3d](../impressao_3d/). Como alternativa, use **Code → Download ZIP** e localize essa pasta após descompactar, ou clone o repositório com Git:
 
 ```powershell
 git clone https://github.com/KaykyCrespo/cinto-inteligente-deteccao-quedas.git
@@ -987,26 +971,6 @@ Fonte: Elaborado pelos autores (2026).
 - O modelo não aprende em operação; incorporar novos dados exige retreino.
 - Após um alarme, o mesmo cinto fica 5 s sem gerar novo alarme, para evitar alertas duplicados.
 
-### 4.5 Declaração formal de uso de IA assistiva
-
-Foram usadas ferramentas de IA generativa como apoio à documentação, à diagramação e ao código. A tabela preserva as informações declaradas pela equipe na parte escrita, sem tratá-las como comprovação independente. Os nomes de versões e percentuais devem ser confrontados com os registros de uso antes da entrega. Nenhuma ferramenta é autora ou coautora do trabalho; a responsabilidade pela revisão, validação e conteúdo final é dos integrantes. A declaração de ausência de dados pessoais ou sensíveis enviados às ferramentas também depende da conferência dos registros pela equipe.
-
-**Quadro 15 – Uso declarado de ferramentas de IA assistiva e pendências de comprovação**
-
-| Ferramenta | Versão e ambiente | Período | Finalidade | Intervenção humana |
-|---|---|---|---|---|
-| Claude (Anthropic) | Denominação informada: claude-opus-5-5; versão não confirmada | 14/09/2026 a 12/11/2026, conforme declaração da equipe | Organização do material, revisão e diagramas | Correção de 80% informada pela equipe; método de cálculo e registros não apresentados neste manual |
-| Claude (Anthropic) | Denominação informada: Sonnet 4.6 low; versão não confirmada | 14/09/2026 a 12/11/2026, conforme declaração da equipe | Desenvolvimento web e firmware | Refatoração de cerca de 75% informada; método de cálculo e registros não apresentados neste manual |
-| ChatGPT (OpenAI) | Denominação informada: ChatGPT 5.6 Sol extra alto; versão não confirmada | 14/10/2026 a 12/11/2026, conforme declaração da equipe | Desenvolvimento web e firmware | Refatoração de cerca de 75% informada; método de cálculo e registros não apresentados neste manual |
-| GitHub Copilot | Assistente no VS Code; modelo não identificado nesta revisão | 12/11/2026, revisão deste manual | Diagnóstico técnico, revisão textual e ajustes no gerador de documentos | Alterações sujeitas à aprovação e à revisão final dos integrantes; nenhum percentual de intervenção foi calculado |
-
-Fonte: Elaborado pelos autores (2026).
-
-
-A equipe informa manter registros de prompts e saídas. A existência, a disponibilidade e a integridade desse arquivo precisam ser confirmadas antes de afirmar rastreabilidade completa. Conferir também a formalização e a assinatura da declaração no Apêndice A do TCC. Percentuais sem método verificável não devem ser apresentados como indicadores auditados.
-
-> O modelo de Random Forest do produto **não** é IA generativa: foi treinado pela equipe com o script `scripts/treino_sisfall.py` sobre o dataset público SisFall.
-
 ---
 
 ## Seção 5 — Manual de Operação e Diagnóstico
@@ -1023,7 +987,7 @@ A equipe informa manter registros de prompts e saídas. A existência, a disponi
 
 **Verificação do handshake:**
 
-**Quadro 16 – Verificações de comunicação e aquisição na partida**
+**Quadro 15 – Verificações de comunicação e aquisição na partida**
 
 | Ponto | Onde verificar | Esperado |
 |---|---|---|
@@ -1067,7 +1031,7 @@ Fonte: Elaborado pelos autores (2026).
 
 **Barra lateral:**
 
-**Quadro 17 – Controles da barra lateral e funções operacionais**
+**Quadro 16 – Controles da barra lateral e funções operacionais**
 
 | Controle | Função |
 |---|---|
@@ -1091,7 +1055,7 @@ O botão controla somente a gravação das amostras brutas. Sessões, janelas an
 - **Probabilidade de queda:** gráfico das 8 últimas janelas (0–100%). Picos que cruzam o limiar geram alarme.
 - **Quedas Detectadas:** tabela com cada evento e o status de envio ao Telegram.
 
-**Figura 9 – Barra lateral do painel**
+**Figura 7 – Barra lateral do painel**
 
 ![Barra lateral com controles do sistema](IMAGENS/prints/barra_lateral_numerada.png)
 
@@ -1106,7 +1070,7 @@ Fonte das figuras: elaborado pelos autores (2026).
 7. **Gravar amostras:** inicia ou encerra a gravação das amostras brutas em CSV e na tabela `amostra` do SQLite.
 8. **Reconectar:** refaz a conexão MQTT sem fechar o painel.
 
-**Figura 10 – Aba Monitoramento em operação**
+**Figura 8 – Aba Monitoramento em operação**
 
 ![Cartão do cinto, métricas, probabilidade de queda e tabela de eventos com marcadores numerados](IMAGENS/prints/monitoramento_numerada.png)
 
@@ -1128,7 +1092,7 @@ Fonte das figuras: elaborado pelos autores (2026).
 14. **Limiar de alerta:** linha tracejada vermelha que marca o valor mínimo de probabilidade para gerar alerta. O controle **Limiar de alarme** na barra lateral ajusta esse valor; nesta captura, está em 50%.
 15. **Quedas detectadas:** lista os eventos registrados e seus dados, como data, hora, cinto, antena, probabilidade e quadrante.
 
-**Figura 11 – Status do sistema, cinto e antenas**
+**Figura 9 – Status do sistema, cinto e antenas**
 
 ![Indicadores do sistema e cartões do cinto e antenas com marcadores numerados](IMAGENS/prints/detalhes_status_numerada.png)
 
@@ -1155,7 +1119,7 @@ Fonte das figuras: elaborado pelos autores (2026).
 
 As outras antenas exibem os mesmos campos e não foram numeradas individualmente.
 
-**Figura 12 – Tabelas RSSI e Histórico de Quedas**
+**Figura 10 – Tabelas RSSI e Histórico de Quedas**
 
 ![Captura do painel com somente a Tabela RSSI e o Histórico de Quedas numerados](IMAGENS/prints/tabela%20RSSI%20e%20historico%20de%20quedas_numerada.png)
 
@@ -1164,7 +1128,7 @@ Fonte das figuras: elaborado pelos autores (2026).
 1. **Tabela RSSI por Cinto × Antena:** apresenta, para cada antena, o RSSI atual e médio, a origem do dado (GATT ou Advertising), a quantidade de amostras e a janela de conexão.
 2. **Histórico de Quedas:** lista os eventos registrados com data, hora, cinto, antena, probabilidade, aceleração máxima, giroscópio, inclinação e quadrante.
 
-**Figura 13 – Gráficos do acelerômetro e do giroscópio**
+**Figura 11 – Gráficos do acelerômetro e do giroscópio**
 
 ![Gráficos de acelerômetro e giroscópio com marcadores numerados](IMAGENS/prints/graficos_sinais_numerados.png)
 
@@ -1173,7 +1137,7 @@ Fonte das figuras: elaborado pelos autores (2026).
 1. **Acelerômetro:** mostra a magnitude da aceleração do cinto, em g, nos últimos cinco segundos.
 2. **Giroscópio:** mostra a magnitude da velocidade angular, em graus por segundo, nos últimos cinco segundos.
 
-**Figura 14 – Configuração do ambiente e sinal de ECG**
+**Figura 12 – Configuração do ambiente e sinal de ECG**
 
 ![Configuração do ambiente e gráfico de ECG com marcadores numerados](IMAGENS/prints/config_localizacao_ECG_numerada.png)
 
@@ -1182,7 +1146,7 @@ Fonte das figuras: elaborado pelos autores (2026).
 1. **Ambiente e posição das antenas:** define as dimensões do cômodo e as coordenadas X/Y das três antenas, em metros.
 2. **ECG bruto:** mostra os últimos cinco segundos do sinal captado pelo módulo AD8232.
 
-**Figura 15 – Mapa indoor e exportação de dados**
+**Figura 13 – Mapa indoor e exportação de dados**
 
 ![Mapa indoor, legenda de raio estimado e seis botões de exportação numerados](IMAGENS/prints/mapa_exportacao_dados_numerada.png)
 
@@ -1196,7 +1160,7 @@ Fonte das figuras: elaborado pelos autores (2026).
 6. **Status das antenas:** baixa em CSV o histórico de estado das antenas.
 7. **Banco SQLite:** baixa o arquivo completo `.db` para consulta ou manutenção.
 
-**Figura 16 – Alerta de possível queda no Telegram**
+**Figura 14 – Alerta de possível queda no Telegram**
 
 ![Mensagem de alerta de possível queda recebida no Telegram, com o corpo da mensagem numerado](IMAGENS/prints/telegram_alerta_queda_numerada.png)
 
@@ -1212,7 +1176,7 @@ Confira o cartão do cinto e o quadrante indicado e entre em contato com a pesso
 
 **USB e rede Wi-Fi**
 
-**Quadro 18 – Diagnóstico de USB e rede Wi-Fi**
+**Quadro 17 – Diagnóstico de USB e rede Wi-Fi**
 
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
@@ -1225,7 +1189,7 @@ Fonte: Elaborado pelos autores (2026).
 
 **MQTT, BLE e fluxo de dados**
 
-**Quadro 19 – Diagnóstico de MQTT, BLE e fluxo de dados**
+**Quadro 18 – Diagnóstico de MQTT, BLE e fluxo de dados**
 
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
@@ -1241,7 +1205,7 @@ Fonte: Elaborado pelos autores (2026).
 
 **Sensores, IA e localização**
 
-**Quadro 20 – Diagnóstico de sensores, IA e localização**
+**Quadro 19 – Diagnóstico de sensores, IA e localização**
 
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
@@ -1256,7 +1220,7 @@ Fonte: Elaborado pelos autores (2026).
 
 **Telegram e operação**
 
-**Quadro 21 – Diagnóstico de Telegram e operação**
+**Quadro 20 – Diagnóstico de Telegram e operação**
 
 | Categoria | Sintoma | Causa provável | Procedimento corretivo |
 |---|---|---|---|
@@ -1279,7 +1243,7 @@ Fonte: Elaborado pelos autores (2026).
 
 **Manutenção preventiva:**
 
-**Quadro 22 – Rotinas de manutenção preventiva**
+**Quadro 21 – Rotinas de manutenção preventiva**
 
 | Frequência | Ação |
 |---|---|
@@ -1295,20 +1259,11 @@ Fonte: Elaborado pelos autores (2026).
 
 Fonte: Elaborado pelos autores (2026).
 
-### 5.5 Pendências de validação antes da entrega
-
-- **Arquitetura documental:** alinhar a parte escrita à versão descrita na Seção 1.1, sem atribuir ao protótipo cálculo de BPM ou recursos não implementados.
-- **Montagem elétrica:** confirmar a posição real da chave e corrigir a divergência entre Figuras 5/6 e tabelas; identificar os reguladores e validar proteção, recarga e isolamento entre USB e bateria.
-- **Evidências experimentais:** registrar corrente média e de pico, autonomia, recarga e temperatura; medir latência ponta a ponta e erro de localização com posições de referência. As estimativas e verificações visuais não substituem esses ensaios.
-- **Comparação de modelos:** executar ou documentar a comparação com limiares sob o mesmo protocolo de avaliação; não inferir superioridade sem resultados.
-- **Uso de IA:** conferir ferramentas, versões, períodos, registros e assinatura; definir método para percentuais ou substituí-los, com aprovação da equipe, por descrição qualitativa verificável.
-- **Normalização e bibliografia:** conferir as fontes primárias e a edição do manual de normalização exigida pela UNIP. As cinco seções seguem o apoio de entrega, mas a conformidade integral com as normas vigentes não está certificada sem essa conferência.
-
-### 5.6 Registros audiovisuais e rastreabilidade dos testes
+### 5.5 Registros audiovisuais e rastreabilidade dos testes
 
 Os vídeos em [dados/testes](../../dados/testes/) podem complementar a documentação como **evidências visuais da execução dos procedimentos**, após conferência de seu conteúdo. Não substituem os dados brutos, a matriz de confusão, as medições elétricas ou os resultados de localização. A existência do arquivo e seu título, isoladamente, não comprovam que o detector reconheceu uma queda, que o alerta foi entregue ou que a posição estimada estava correta.
 
-**Quadro 23 – Registros audiovisuais disponíveis para conferência dos testes**
+**Quadro 22 – Registros audiovisuais disponíveis para conferência dos testes**
 
 | Arquivo | Identificação pelo nome do arquivo | Correspondência com dados e resultados |
 |---|---|---|
